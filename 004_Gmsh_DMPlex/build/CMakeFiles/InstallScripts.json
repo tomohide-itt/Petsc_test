@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/mnt/d/research/petsc_test/004_Gmsh_DMPlex/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

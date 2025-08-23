@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.18)
+set( PRG_NAME "poisson" )
+project( ${PRG_NAME} C)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PETSC REQUIRED IMPORTED_TARGET petsc)
+add_executable(${PRG_NAME} ${PRG_NAME}.c)
+target_link_libraries(${PRG_NAME} PRIVATE PkgConfig::PETSC)

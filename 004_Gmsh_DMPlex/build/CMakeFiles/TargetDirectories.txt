@@ -1,0 +1,3 @@
+/mnt/d/research/petsc_test/004_Gmsh_DMPlex/build/CMakeFiles/gmsh1.dir
+/mnt/d/research/petsc_test/004_Gmsh_DMPlex/build/CMakeFiles/edit_cache.dir
+/mnt/d/research/petsc_test/004_Gmsh_DMPlex/build/CMakeFiles/rebuild_cache.dir
