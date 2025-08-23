@@ -1,1 +1,0 @@
-/usr/bin/cc -Wl,-rpath -Wl,/home/takeyama/petsc/arch-linux-c-opt/lib -Wl,--enable-new-dtags CMakeFiles/gmsh1.dir/gmsh1.c.o -o gmsh1  -Wl,-rpath,/home/takeyama/petsc/arch-linux-c-opt/lib /home/takeyama/petsc/arch-linux-c-opt/lib/libmpi.so /home/takeyama/petsc/arch-linux-c-opt/lib/libpetsc.so

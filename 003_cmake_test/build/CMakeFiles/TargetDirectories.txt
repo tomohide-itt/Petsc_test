@@ -1,3 +1,0 @@
-/mnt/d/research/petsc_test/003_cmake_test/build/CMakeFiles/poisson.dir
-/mnt/d/research/petsc_test/003_cmake_test/build/CMakeFiles/edit_cache.dir
-/mnt/d/research/petsc_test/003_cmake_test/build/CMakeFiles/rebuild_cache.dir

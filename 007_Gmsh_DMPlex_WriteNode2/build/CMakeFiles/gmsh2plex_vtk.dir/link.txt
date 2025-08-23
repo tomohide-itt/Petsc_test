@@ -1,1 +1,0 @@
-/usr/bin/cc -Wl,-rpath -Wl,/home/takeyama/petsc/arch-linux-c-opt/lib -Wl,--enable-new-dtags CMakeFiles/gmsh2plex_vtk.dir/gmsh2plex_vtk.c.o -o gmsh2plex_vtk  -Wl,-rpath,/home/takeyama/petsc/arch-linux-c-opt/lib /home/takeyama/petsc/arch-linux-c-opt/lib/libpetsc.so /home/takeyama/petsc/arch-linux-c-opt/lib/libmpi.so

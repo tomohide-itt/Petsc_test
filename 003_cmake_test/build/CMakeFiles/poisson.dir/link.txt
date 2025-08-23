@@ -1,1 +1,0 @@
-/usr/bin/cc CMakeFiles/poisson.dir/poisson.c.o -o poisson  -Wl,-rpath,/home/takeyama/petsc/arch-linux-c-opt/lib /home/takeyama/petsc/arch-linux-c-opt/lib/libpetsc.so

@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/mnt/d/research/petsc_test/003_cmake_test/build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
