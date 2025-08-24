@@ -144,10 +144,6 @@ int main(int argc, char **argv)
   PetscCheck( cdm!=NULL, PETSC_COMM_WORLD, PETSC_ERR_PLIB, "Coordinate DM (cdm) is NULL");
   // dm が持つ「座標ベクトル（ローカル）」を取り出して coordsLocal に入れる
   PetscCall( DMGetCoordinatesLocal( dm, &coordsLocal ) );
-  if (!coordsLocal) {
-    PetscCall(DMLocalizeCoordinates(dm));
-    PetscCall(DMGetCoordinatesLocal(dm, &coordsLocal));
-  }
   // coordsLocalがあれば，生ポインタに格納
   if (coordsLocal) PetscCall( VecGetArrayRead(coordsLocal, &aLoc) );
   // dm が持つ「座標ベクトル（グローバル）」を取り出して　coordsGlobal に入れる
@@ -155,40 +151,132 @@ int main(int argc, char **argv)
   // coordsGlobalがあれば，生ポインタに格納
   if (coordsGlobal) PetscCall( VecGetArrayRead( coordsGlobal, &aGlob ) );
   //+++
-  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, coordsLocal=%p\n", rank, coordsLocal );
-  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, coordsGlobal=%p\n", rank, coordsGlobal );
-  if( coordsLocal )
-  {
-    PetscInt numLoc;
-    PetscCall( VecGetLocalSize( coordsLocal, &numLoc ) );
-    for( PetscInt i=0; i<numLoc; i=i+2 )
+  if( 0 ){
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, coordsLocal=%p\n", rank, coordsLocal );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, coordsGlobal=%p\n", rank, coordsGlobal );
+    // aLocの内容を出力
+    if( coordsLocal )
     {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "aLoc[%d]=%15.5e,%15.5e\n", i, (double)PetscRealPart(aLoc[i]), (double)PetscRealPart(aLoc[i+1]) );
+      PetscInt numLoc;
+      PetscCall( VecGetLocalSize( coordsLocal, &numLoc ) );
+      for( PetscInt i=0; i<numLoc; i=i+dim )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "aLoc[%d]=%15.5e", i, (double)PetscRealPart(aLoc[i]) );
+        if( dim >= 2 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", (double)PetscRealPart(aLoc[i+1]) );
+        if( dim >= 3 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", (double)PetscRealPart(aLoc[i+2]) );
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+      }
     }
   }
   //---
-  //test
-  {
+  //+++
+  if( 0 ){
     PetscSection section;
     PetscInt pStart, pEnd;
     PetscCall( DMGetCoordinateSection( dm, &section) );
+    //全ての頂点IDの範囲を取得
     PetscCall(DMPlexGetChart(dm, &pStart, &pEnd));
     PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, [pStart,  pEnd ) = [%5d,%5d )\n", rank, pStart, pEnd );
-    for( PetscInt p=pStart; p<pEnd; p++ )
+    for( PetscInt pID=pStart; pID<pEnd; pID++ )
     {
-      PetscInt dof;
-      PetscCall( PetscSectionGetDof(section, p, &dof) );
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, p=%5d dof=%5d\n", rank, p, dof );
+      PetscInt dof, offset;
+      PetscCall( PetscSectionGetDof(    section, pID, &dof    ) );
+      PetscCall( PetscSectionGetOffset( section, pID, &offset ) );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, pID=%5d offset=%5d dof=%5d\n", rank, pID, offset, dof );
+    }
+  }
+  //---
+
+  //=== 頂点，面，セルのIDの範囲を取得 ==============================================================================
+  PetscInt cellStart, cellEnd, faceStart, faceEnd, vtxStart, vtxEnd; // DMPlex内部のセルと頂点の最初のIDと最後のID
+  // DMPlex内部のセルの最初のIDと最後のIDを取得
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &cellStart, &cellEnd ) );
+  PetscCall( DMPlexGetHeightStratum( dm, 1, &faceStart, &faceEnd ) );
+  // DMPlex内部の頂点の最初のIDと最後のIDを取得
+  PetscCall( DMPlexGetDepthStratum( dm, 0, &vtxStart, &vtxEnd ) );
+  //+++
+  if(1){
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, [vtxStart,  vtxEnd ) = [%5d,%5d )\n", rank, vtxStart,  vtxEnd );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, [faceStart, faceEnd) = [%5d,%5d )\n", rank, faceStart, faceEnd );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, [cellStart, cellEnd) = [%5d,%5d )\n", rank, cellStart, cellEnd );
+  }
+  //---
+
+  //=== セル数，面数，境界面数，頂点数を取得 ==============================================================================
+  PetscInt numCells = cellEnd - cellStart;
+  PetscInt numFaces = faceEnd - faceStart;
+  PetscInt numVertices = vtxEnd - vtxStart;
+  PetscInt numBoundaries = 0;
+  for( PetscInt f=faceStart; f<faceEnd; f++ )
+  {
+    PetscInt suppSize;
+    PetscCall( DMPlexGetSupportSize( dm, f, &suppSize ) );
+    if( suppSize == 1 ) numBoundaries++;
+  }
+  //+++
+  if(1){
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, numVertices   =%5d\n", rank, numVertices );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, numFaces      =%5d\n", rank, numFaces );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, numCells      =%5d\n", rank, numCells );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, numBoundaries =%5d\n", rank, numBoundaries );
+  }
+
+  //=== ラベル（GmshのPhysical Group）を取得 ==============================================================================
+  PetscInt numLabels;
+  PetscCall( DMGetNumLabels( dm, &numLabels ) );
+  //+++
+  if(1){
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, numLabels =%5d\n", rank, numLabels );
+    for( PetscInt i=0; i<numLabels; i++ )
+    {
+      const char* label_name = NULL;
+      PetscCall( DMGetLabelName( dm, i, &label_name ) );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, Label[%5d] = %s\n", rank, i, label_name );
     }
   }
 
+  //=== あるラベルについて，値（=Physical ID）ごとの要素数を数える
+  DMLabel label;
+  PetscCall( DMGetLabel( dm, "Cell Sets", &label ) );
+  if( label )
+  {
+    IS valueIS;
+    const PetscInt *vals;
+    PetscInt nvals;
+    PetscCall( DMLabelGetValueIS( label, &valueIS ) );
+    if( valueIS )
+    {
+      PetscCall( ISGetLocalSize( valueIS, &nvals ) );
+      PetscCall( ISGetIndices( valueIS, &vals ) );
+      //+++
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, nvals = %d\n", rank, nvals );
+      //---
+      for( PetscInt k=0; k<nvals; k++ )
+      {
+        PetscInt v = vals[k];
+        IS points;
+        const PetscInt *pts;
+        PetscInt npts = 0;
+        PetscCall( DMLabelGetStratumIS( label, v, &points ) );
+        if( points )
+        {
+          PetscCall( ISGetLocalSize( points, &npts ) );
+          PetscCall( ISGetIndices( points, &pts ) );
+          //+++
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, Cell Set value = %d : %d cells\n", rank, v, npts );
+          //---
+          PetscCall( ISRestoreIndices( points, &pts ) );
+          PetscCall( ISDestroy( &points ) );
+        }
+      }
+      PetscCall( ISRestoreIndices( valueIS, &vals ) );
+      PetscCall( ISDestroy( &valueIS ) );
+    }
+  }
+
+
+
   /*
-  //===
-  PetscInt cellStart, cellEnd, vtxStart, vtxEnd; // DMPlex内部のセルと頂点の最初のIDと最後のID
-  // DMPlex内部のセルの最初のIDと最後のIDを取得
-  PetscCall( DMPlexGetHeightStratum( dm, 0, &cellStart, &cellEnd ) );
-  // DMPlex内部の頂点の最初のIDと最後のIDを取得
-  PetscCall( DMPlexGetDepthStratum( dm, 0, &vtxStart, &vtxEnd ) );
   //+++
   {
     // 頂点の情報を出力
@@ -239,10 +327,6 @@ int main(int argc, char **argv)
 
 /*
   PetscInt cStart, cEnd, vStart, vEnd;
-
-  // セル・頂点の範囲（トポロジ） 
-  PetscCall(DMPlexGetHeightStratum(dm, 0, &cStart, &cEnd));  // 2D: cells (tri)
-  PetscCall(DMPlexGetDepthStratum(dm, 0, &vStart, &vEnd));   // vertices
 
   // 三角形セル数カウント（coneSize==3 を tri とみなす） 
   PetscInt Nc=0;
