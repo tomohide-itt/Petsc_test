@@ -36,7 +36,7 @@ int main(int argc,char **argv)
   //=== 座標（ローカル/グローバル）を取得 ==============================================================================
   const PetscScalar *a_loc  = NULL;
   const PetscScalar *a_glob = NULL;
-  get_coords( dm, dim, a_loc, a_glob, false );
+  get_coords( dm, dim, a_loc, a_glob, true );
 
   //=== 頂点，面，セルのIDの範囲を取得 ==============================================================================
   PetscInt vtx_start, vtx_end, face_start, face_end, cell_start, cell_end; // DMPlex内部のセルと頂点の最初のIDと最後のID

@@ -11,7 +11,6 @@ PetscErrorCode read_gmsh( const char* mesh_path, DM &dm, PetscInt &dim )
   PetscCheck( dim==2, PETSC_COMM_WORLD, PETSC_ERR_SUP, "このサンプルは2D専用です");
   //+++
   {
-    PetscPrintf( PETSC_COMM_WORLD, "--- check ---\n" );
     PetscPrintf( PETSC_COMM_WORLD, "dim = %d\n", (int)dim );
   }
   //---
@@ -243,5 +242,119 @@ PetscErrorCode get_label_num( const int rank, const DM& dm, const std::string& l
   }
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// DMPlexのセルpointIDとgmshのelementTagの紐づけ
+PetscErrorCode get_elemID_map( const int rank, const DM& dm, const PetscInt dim, const node_vec& nodes, const elem_vec& elems, std::map<int,int>& eID2pID,
+  const bool debug )
+{
+  Vec coords_loc = NULL;
+  PetscCall( DMGetCoordinatesLocal( dm, &coords_loc ) );
+  const PetscScalar *a_loc;
+  if (coords_loc) PetscCall( VecGetArrayRead(coords_loc, &a_loc) );
+
+  PetscSection section;
+  PetscInt cellID_start, cellID_end;
+  PetscCall( DMGetCoordinateSection( dm, &section ) );
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &cellID_start, &cellID_end ) );
+
+  std::vector<bool> visited_elem( elems.size(), false );
+  for( PetscInt p=cellID_start; p<cellID_end; p++ )
+  {
+    // セルごとに節点の座標値を取得
+    PetscInt dof, offset;
+    PetscCall( PetscSectionGetDof(    section, p, &dof    ) );
+    PetscCall( PetscSectionGetOffset( section, p, &offset ) );
+    PetscInt num_node = dof/dim;
+    std::vector<std::vector<double>> xyz( num_node, std::vector<double>( dim, 0.0 ) );
+    for( int n=0; n<num_node; n++ )
+    {
+      for( int i=0; i<dim; i++ )
+      {
+        xyz[n][i] = (double)PetscRealPart(a_loc[offset + n*dim + i]);
+      }
+    }
+    if( debug )
+    {
+      std::cout << std::scientific << std::setprecision(5);
+      for( int n=0; n<num_node; n++ )
+      {
+        for( int i=0; i<dim; i++ )
+        {
+          std::cout << std::setw(15) << xyz[n][i];
+        }
+        std::cout << std::endl;
+      }
+      std::cout << std::defaultfloat;
+    }
+    //---
+
+    // elemsと突き合わせて，6点の座標値が一致していれば，そのelemsのIDとpのマップを登録する
+    if( debug ) std::cout << " ---------- " << std::endl;
+    double tol = 1.0e-8;
+
+    for( const elem &e : elems )
+    {
+      if( e.nodeIDs.size() != num_node ) continue;
+      int eidx = elems.idx_of_id( e.ID );
+      if( visited_elem[eidx] ) continue;
+      
+      if(debug) std::cout << "check elem ID= " << e.ID << std::endl;
+      if(debug) std::cout << "eidx= " << eidx << std::endl;
+      
+      std::vector<bool> visited_node( num_node, false );
+      bool identical = true;
+      for( int nid=0; nid<num_node; nid++ )
+      {
+        const node& nd = nodes.id_of(e.nodeIDs[nid]);
+        
+        if( debug )
+        {
+          std::cout << "  e.nodeIDs[" << nid << "]=" << e.nodeIDs[nid] << std::endl;
+          std::cout << "  node ID= " << nd.ID << std::endl;
+          std::cout << "  ";
+          std::cout << std::scientific << std::setprecision(5);
+          std::cout << std::setw(15) << nd.x;
+          std::cout << std::setw(15) << nd.y;
+          std::cout << std::endl;
+          std::cout << std::defaultfloat;
+        }
+
+        bool find = false;
+        for( int n=0; n<num_node; n++ )
+        {
+          if( visited_node[n] ) continue;
+          bool same = true;
+          if( dim == 2 )
+          {
+            same = same && close2( nd.x, xyz[n][0], tol ) && close2( nd.y, xyz[n][1], tol );
+          }
+          if( same )
+          {
+            visited_node[n] = true;
+            find = true;
+            break;
+          }
+        }
+        
+        if( debug ) std::cout << "  find = " << std::boolalpha << find << std::endl;
+        
+        identical = identical && find;
+        if( !find ) break;
+      }
+      if( identical )
+      {
+        visited_elem[eidx] = true;
+        eID2pID[e.ID] = p;
+        if( debug ) std::cout << "elems.ID=" << e.ID << " is identical with " << p << std::endl;
+        if( debug ) std::cout << "visited_elem[" << eidx << "] = " << std::boolalpha << visited_elem[eidx] << std::endl;
+        if( debug ) std::cout << " ---------- " << std::endl;
+        break;
+      }
+    }
+  }
+
+  if (coords_loc)  PetscCall(VecRestoreArrayRead(coords_loc,  &a_loc ) );
   PetscFunctionReturn( PETSC_SUCCESS );
 }
