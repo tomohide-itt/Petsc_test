@@ -1,0 +1,1367 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>２次要素のmshを読込んで，DMPlexのpointIDとgmshのelementTagの紐づけ</title><style>
+/* cspell:disable-file */
+/* webkit printing magic: print all background colors */
+html {
+	-webkit-print-color-adjust: exact;
+}
+* {
+	box-sizing: border-box;
+	-webkit-print-color-adjust: exact;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+@media only screen {
+	body {
+		margin: 2em auto;
+		max-width: 900px;
+		color: rgb(55, 53, 47);
+	}
+}
+
+body {
+	line-height: 1.5;
+	white-space: pre-wrap;
+}
+
+a,
+a.visited {
+	color: inherit;
+	text-decoration: underline;
+}
+
+.pdf-relative-link-path {
+	font-size: 80%;
+	color: #444;
+}
+
+h1,
+h2,
+h3 {
+	letter-spacing: -0.01em;
+	line-height: 1.2;
+	font-weight: 600;
+	margin-bottom: 0;
+}
+
+.page-title {
+	font-size: 2.5rem;
+	font-weight: 700;
+	margin-top: 0;
+	margin-bottom: 0.75em;
+}
+
+h1 {
+	font-size: 1.875rem;
+	margin-top: 1.875rem;
+}
+
+h2 {
+	font-size: 1.5rem;
+	margin-top: 1.5rem;
+}
+
+h3 {
+	font-size: 1.25rem;
+	margin-top: 1.25rem;
+}
+
+.source {
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	padding: 1.5em;
+	word-break: break-all;
+}
+
+.callout {
+	border-radius: 3px;
+	padding: 1rem;
+}
+
+figure {
+	margin: 1.25em 0;
+	page-break-inside: avoid;
+}
+
+figcaption {
+	opacity: 0.5;
+	font-size: 85%;
+	margin-top: 0.5em;
+}
+
+mark {
+	background-color: transparent;
+}
+
+.indented {
+	padding-left: 1.5em;
+}
+
+hr {
+	background: transparent;
+	display: block;
+	width: 100%;
+	height: 1px;
+	visibility: visible;
+	border: none;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.09);
+}
+
+img {
+	max-width: 100%;
+}
+
+@media only print {
+	img {
+		max-height: 100vh;
+		object-fit: contain;
+	}
+}
+
+@page {
+	margin: 1in;
+}
+
+.collection-content {
+	font-size: 0.875rem;
+}
+
+.collection-content td {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.column-list {
+	display: flex;
+	justify-content: space-between;
+}
+
+.column {
+	padding: 0 1em;
+}
+
+.column:first-child {
+	padding-left: 0;
+}
+
+.column:last-child {
+	padding-right: 0;
+}
+
+.table_of_contents-item {
+	display: block;
+	font-size: 0.875rem;
+	line-height: 1.3;
+	padding: 0.125rem;
+}
+
+.table_of_contents-indent-1 {
+	margin-left: 1.5rem;
+}
+
+.table_of_contents-indent-2 {
+	margin-left: 3rem;
+}
+
+.table_of_contents-indent-3 {
+	margin-left: 4.5rem;
+}
+
+.table_of_contents-link {
+	text-decoration: none;
+	opacity: 0.7;
+	border-bottom: 1px solid rgba(55, 53, 47, 0.18);
+}
+
+table,
+th,
+td {
+	border: 1px solid rgba(55, 53, 47, 0.09);
+	border-collapse: collapse;
+}
+
+table {
+	border-left: none;
+	border-right: none;
+}
+
+th,
+td {
+	font-weight: normal;
+	padding: 0.25em 0.5em;
+	line-height: 1.5;
+	min-height: 1.5em;
+	text-align: left;
+}
+
+th {
+	color: rgba(55, 53, 47, 0.6);
+}
+
+ol,
+ul {
+	margin: 0;
+	margin-block-start: 0.6em;
+	margin-block-end: 0.6em;
+}
+
+li > ol:first-child,
+li > ul:first-child {
+	margin-block-start: 0.6em;
+}
+
+ul > li {
+	list-style: disc;
+}
+
+ul.to-do-list {
+	padding-inline-start: 0;
+}
+
+ul.to-do-list > li {
+	list-style: none;
+}
+
+.to-do-children-checked {
+	text-decoration: line-through;
+	opacity: 0.375;
+}
+
+ul.toggle > li {
+	list-style: none;
+}
+
+ul {
+	padding-inline-start: 1.7em;
+}
+
+ul > li {
+	padding-left: 0.1em;
+}
+
+ol {
+	padding-inline-start: 1.6em;
+}
+
+ol > li {
+	padding-left: 0.2em;
+}
+
+.mono ol {
+	padding-inline-start: 2em;
+}
+
+.mono ol > li {
+	text-indent: -0.4em;
+}
+
+.toggle {
+	padding-inline-start: 0em;
+	list-style-type: none;
+}
+
+/* Indent toggle children */
+.toggle > li > details {
+	padding-left: 1.7em;
+}
+
+.toggle > li > details > summary {
+	margin-left: -1.1em;
+}
+
+.selected-value {
+	display: inline-block;
+	padding: 0 0.5em;
+	background: rgba(206, 205, 202, 0.5);
+	border-radius: 3px;
+	margin-right: 0.5em;
+	margin-top: 0.3em;
+	margin-bottom: 0.3em;
+	white-space: nowrap;
+}
+
+.collection-title {
+	display: inline-block;
+	margin-right: 1em;
+}
+
+.page-description {
+	margin-bottom: 2em;
+}
+
+.simple-table {
+	margin-top: 1em;
+	font-size: 0.875rem;
+	empty-cells: show;
+}
+.simple-table td {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table th {
+	height: 29px;
+	min-width: 120px;
+}
+
+.simple-table-header-color {
+	background: rgb(247, 246, 243);
+	color: black;
+}
+.simple-table-header {
+	font-weight: 500;
+}
+
+time {
+	opacity: 0.5;
+}
+
+.icon {
+	display: inline-block;
+	max-width: 1.2em;
+	max-height: 1.2em;
+	text-decoration: none;
+	vertical-align: text-bottom;
+	margin-right: 0.5em;
+}
+
+img.icon {
+	border-radius: 3px;
+}
+
+.user-icon {
+	width: 1.5em;
+	height: 1.5em;
+	border-radius: 100%;
+	margin-right: 0.5rem;
+}
+
+.user-icon-inner {
+	font-size: 0.8em;
+}
+
+.text-icon {
+	border: 1px solid #000;
+	text-align: center;
+}
+
+.page-cover-image {
+	display: block;
+	object-fit: cover;
+	width: 100%;
+	max-height: 30vh;
+}
+
+.page-header-icon {
+	font-size: 3rem;
+	margin-bottom: 1rem;
+}
+
+.page-header-icon-with-cover {
+	margin-top: -0.72em;
+	margin-left: 0.07em;
+}
+
+.page-header-icon img {
+	border-radius: 3px;
+}
+
+.link-to-page {
+	margin: 1em 0;
+	padding: 0;
+	border: none;
+	font-weight: 500;
+}
+
+p > .user {
+	opacity: 0.5;
+}
+
+td > .user,
+td > time {
+	white-space: nowrap;
+}
+
+input[type="checkbox"] {
+	transform: scale(1.5);
+	margin-right: 0.6em;
+	vertical-align: middle;
+}
+
+p {
+	margin-top: 0.5em;
+	margin-bottom: 0.5em;
+}
+
+.image {
+	border: none;
+	margin: 1.5em 0;
+	padding: 0;
+	border-radius: 0;
+	text-align: center;
+}
+
+.code,
+code {
+	background: rgba(135, 131, 120, 0.15);
+	border-radius: 3px;
+	padding: 0.2em 0.4em;
+	border-radius: 3px;
+	font-size: 85%;
+	tab-size: 2;
+}
+
+code {
+	color: #eb5757;
+}
+
+.code {
+	padding: 1.5em 1em;
+}
+
+.code-wrap {
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.code > code {
+	background: none;
+	padding: 0;
+	font-size: 100%;
+	color: inherit;
+}
+
+blockquote {
+	font-size: 1.25em;
+	margin: 1em 0;
+	padding-left: 1em;
+	border-left: 3px solid rgb(55, 53, 47);
+}
+
+.bookmark {
+	text-decoration: none;
+	max-height: 8em;
+	padding: 0;
+	display: flex;
+	width: 100%;
+	align-items: stretch;
+}
+
+.bookmark-title {
+	font-size: 0.85em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	height: 1.75em;
+	white-space: nowrap;
+}
+
+.bookmark-text {
+	display: flex;
+	flex-direction: column;
+}
+
+.bookmark-info {
+	flex: 4 1 180px;
+	padding: 12px 14px 14px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.bookmark-image {
+	width: 33%;
+	flex: 1 1 180px;
+	display: block;
+	position: relative;
+	object-fit: cover;
+	border-radius: 1px;
+}
+
+.bookmark-description {
+	color: rgba(55, 53, 47, 0.6);
+	font-size: 0.75em;
+	overflow: hidden;
+	max-height: 4.5em;
+	word-break: break-word;
+}
+
+.bookmark-href {
+	font-size: 0.75em;
+	margin-top: 0.25em;
+}
+
+.sans { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol"; }
+.code { font-family: "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace; }
+.serif { font-family: Lyon-Text, Georgia, ui-serif, serif; }
+.mono { font-family: iawriter-mono, Nitti, Menlo, Courier, monospace; }
+.pdf .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK JP'; }
+.pdf:lang(zh-CN) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK SC'; }
+.pdf:lang(zh-TW) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK TC'; }
+.pdf:lang(ko-KR) .sans { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", Helvetica, "Apple Color Emoji", Arial, sans-serif, "Segoe UI Emoji", "Segoe UI Symbol", 'Twemoji', 'Noto Color Emoji', 'Noto Sans CJK KR'; }
+.pdf .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .code { font-family: Source Code Pro, "SFMono-Regular", Menlo, Consolas, "PT Mono", "Liberation Mono", Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.pdf .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK JP'; }
+.pdf:lang(zh-CN) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK SC'; }
+.pdf:lang(zh-TW) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK TC'; }
+.pdf:lang(ko-KR) .serif { font-family: PT Serif, Lyon-Text, Georgia, ui-serif, serif, 'Twemoji', 'Noto Color Emoji', 'Noto Serif CJK KR'; }
+.pdf .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK JP'; }
+.pdf:lang(zh-CN) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK SC'; }
+.pdf:lang(zh-TW) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK TC'; }
+.pdf:lang(ko-KR) .mono { font-family: PT Mono, iawriter-mono, Nitti, Menlo, Courier, monospace, 'Twemoji', 'Noto Color Emoji', 'Noto Sans Mono CJK KR'; }
+.highlight-default {
+	color: rgba(50, 48, 44, 1);
+}
+.highlight-gray {
+	color: rgba(115, 114, 110, 1);
+	fill: rgba(115, 114, 110, 1);
+}
+.highlight-brown {
+	color: rgba(159, 107, 83, 1);
+	fill: rgba(159, 107, 83, 1);
+}
+.highlight-orange {
+	color: rgba(217, 115, 13, 1);
+	fill: rgba(217, 115, 13, 1);
+}
+.highlight-yellow {
+	color: rgba(203, 145, 47, 1);
+	fill: rgba(203, 145, 47, 1);
+}
+.highlight-teal {
+	color: rgba(68, 131, 97, 1);
+	fill: rgba(68, 131, 97, 1);
+}
+.highlight-blue {
+	color: rgba(51, 126, 169, 1);
+	fill: rgba(51, 126, 169, 1);
+}
+.highlight-purple {
+	color: rgba(144, 101, 176, 1);
+	fill: rgba(144, 101, 176, 1);
+}
+.highlight-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.highlight-red {
+	color: rgba(205, 60, 58, 1);
+	fill: rgba(205, 60, 58, 1);
+}
+.highlight-default_background {
+	color: rgba(50, 48, 44, 1);
+}
+.highlight-gray_background {
+	background: rgba(248, 248, 247, 1);
+}
+.highlight-brown_background {
+	background: rgba(244, 238, 238, 1);
+}
+.highlight-orange_background {
+	background: rgba(251, 236, 221, 1);
+}
+.highlight-yellow_background {
+	background: rgba(251, 243, 219, 1);
+}
+.highlight-teal_background {
+	background: rgba(237, 243, 236, 1);
+}
+.highlight-blue_background {
+	background: rgba(231, 243, 248, 1);
+}
+.highlight-purple_background {
+	background: rgba(248, 243, 252, 1);
+}
+.highlight-pink_background {
+	background: rgba(252, 241, 246, 1);
+}
+.highlight-red_background {
+	background: rgba(253, 235, 236, 1);
+}
+.block-color-default {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray {
+	color: rgba(115, 114, 110, 1);
+	fill: rgba(115, 114, 110, 1);
+}
+.block-color-brown {
+	color: rgba(159, 107, 83, 1);
+	fill: rgba(159, 107, 83, 1);
+}
+.block-color-orange {
+	color: rgba(217, 115, 13, 1);
+	fill: rgba(217, 115, 13, 1);
+}
+.block-color-yellow {
+	color: rgba(203, 145, 47, 1);
+	fill: rgba(203, 145, 47, 1);
+}
+.block-color-teal {
+	color: rgba(68, 131, 97, 1);
+	fill: rgba(68, 131, 97, 1);
+}
+.block-color-blue {
+	color: rgba(51, 126, 169, 1);
+	fill: rgba(51, 126, 169, 1);
+}
+.block-color-purple {
+	color: rgba(144, 101, 176, 1);
+	fill: rgba(144, 101, 176, 1);
+}
+.block-color-pink {
+	color: rgba(193, 76, 138, 1);
+	fill: rgba(193, 76, 138, 1);
+}
+.block-color-red {
+	color: rgba(205, 60, 58, 1);
+	fill: rgba(205, 60, 58, 1);
+}
+.block-color-default_background {
+	color: inherit;
+	fill: inherit;
+}
+.block-color-gray_background {
+	background: rgba(248, 248, 247, 1);
+}
+.block-color-brown_background {
+	background: rgba(244, 238, 238, 1);
+}
+.block-color-orange_background {
+	background: rgba(251, 236, 221, 1);
+}
+.block-color-yellow_background {
+	background: rgba(251, 243, 219, 1);
+}
+.block-color-teal_background {
+	background: rgba(237, 243, 236, 1);
+}
+.block-color-blue_background {
+	background: rgba(231, 243, 248, 1);
+}
+.block-color-purple_background {
+	background: rgba(248, 243, 252, 1);
+}
+.block-color-pink_background {
+	background: rgba(252, 241, 246, 1);
+}
+.block-color-red_background {
+	background: rgba(253, 235, 236, 1);
+}
+.select-value-color-default { background-color: rgba(42, 28, 0, 0.07); }
+.select-value-color-gray { background-color: rgba(28, 19, 1, 0.11); }
+.select-value-color-brown { background-color: rgba(142, 58, 1, 0.141); }
+.select-value-color-orange { background-color: rgba(213, 96, 0, 0.188); }
+.select-value-color-yellow { background-color: rgba(209, 155, 0, 0.238); }
+.select-value-color-green { background-color: rgba(1, 104, 42, 0.145); }
+.select-value-color-blue { background-color: rgba(45, 149, 218, 0.236); }
+.select-value-color-purple { background-color: rgba(104, 1, 184, 0.125); }
+.select-value-color-pink { background-color: rgba(204, 1, 88, 0.137); }
+.select-value-color-red { background-color: rgba(228, 26, 0, 0.148); }
+
+.checkbox {
+	display: inline-flex;
+	vertical-align: text-bottom;
+	width: 16;
+	height: 16;
+	background-size: 16px;
+	margin-left: 2px;
+	margin-right: 5px;
+}
+
+.checkbox-on {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20width%3D%2216%22%20height%3D%2216%22%20fill%3D%22%2358A9D7%22%2F%3E%0A%3Cpath%20d%3D%22M6.71429%2012.2852L14%204.9995L12.7143%203.71436L6.71429%209.71378L3.28571%206.2831L2%207.57092L6.71429%2012.2852Z%22%20fill%3D%22white%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+
+.checkbox-off {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%0A%3Crect%20x%3D%220.75%22%20y%3D%220.75%22%20width%3D%2214.5%22%20height%3D%2214.5%22%20fill%3D%22white%22%20stroke%3D%22%2336352F%22%20stroke-width%3D%221.5%22%2F%3E%0A%3C%2Fsvg%3E");
+}
+	
+</style></head><body><article id="25c1cd7c-3133-80e9-818d-e8aa844d036c" class="page sans"><header><h1 class="page-title">２次要素のmshを読込んで，DMPlexのpointIDとgmshのelementTagの紐づけ</h1><p class="page-description"></p></header><div class="page-body"><details open=""><summary style="font-weight:600;font-size:1.875em;line-height:1.3;margin:0">コード</summary><div class="indented"><p id="25c1cd7c-3133-8030-b40b-c302f6ae2feb" class="">2次要素をDMPlexで読み込んだ場合，座標情報はセルごとにまとめられる．セルに振られたpointIDは，gmsh の elementTag とは関係がなく，elementTag の情報は失われる．</p><p id="25c1cd7c-3133-80a1-86ef-d61edcd3a44f" class="">したがって，以下の方法で，セルpointID と elementTag のマッピングをする．</p><ol type="1" id="25c1cd7c-3133-806d-9c0e-e4f1b649dad7" class="numbered-list" start="1"><li>mshを読込んで，節点情報と要素情報を取得する</li></ol><ol type="1" id="25c1cd7c-3133-806a-97bf-e02ac0b4aeba" class="numbered-list" start="2"><li>mshをDMPlexで読込む</li></ol><ol type="1" id="25c1cd7c-3133-8080-8a99-fab981e7d97e" class="numbered-list" start="3"><li>DMPlexのセルが持っている座標情報とmshからの情報を突き合わせて，全ての節点の座標が一致している要素のelementTagを調べて，mapを登録</li></ol><p id="25c1cd7c-3133-803b-b817-de07b7fda5d2" class="">この方法であると，二重節点が存在する場合も対応できる．今のままであると，座標値が一致する要素の探索に時間がかかりすぎるので，改善は必要．</p><p id="25c1cd7c-3133-8065-8206-de8d95b35f6a" class="">コードは，<code>008_Gmsh_DMPlex_IDmapping</code> と <code>009_Gmsh_DMPlex_P2_Parmetis</code> であり，008 では，領域分割を行っていないが， 009 では領域分割を行っている．</p></div></details><details open=""><summary style="font-weight:600;font-size:1.875em;line-height:1.3;margin:0">実行</summary><div class="indented"><p id="25c1cd7c-3133-80ea-bf44-fb53ef698489" class=""><code>009_Gmsh_DMPlex_P2_Parmetis</code> にあるコードをビルドして以下のように実行する．読み込んでいるmshファイルは，今までと同じ <code>test2D.msh</code> である．</p><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-804c-bb1b-df83d3c1a72a" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">mpiexec -n 2 ./gmsh2plex -mesh test2D.msh</code></pre><p id="25c1cd7c-3133-80ae-b363-ff75f36c0399" class="">2並列で実行した結果を示す．実行したときの出力が長いので，部分に分けて示す．</p><ul id="25c1cd7c-3133-80a1-a16f-cf1d4eb7a20c" class="toggle"><li><details open=""><summary>実行結果（mshから読んだ節点情報）</summary><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-805f-ae1d-eea9ef3293d0" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">number of nodes = 357
+idx:      0 ID:      1 (x y z):    0.00000e+00    0.00000e+00    0.00000e+00
+idx:      1 ID:      2 (x y z):    1.00000e+00    0.00000e+00    0.00000e+00
+idx:      2 ID:      3 (x y z):    1.00000e+00    1.00000e+00    0.00000e+00
+idx:      3 ID:      4 (x y z):    0.00000e+00    1.00000e+00    0.00000e+00
+idx:      4 ID:      5 (x y z):    1.00000e+00    1.25000e-01    0.00000e+00
+idx:      5 ID:      6 (x y z):    1.00000e+00    2.50000e-01    0.00000e+00
+idx:      6 ID:      7 (x y z):    1.00000e+00    3.75000e-01    0.00000e+00
+idx:      7 ID:      8 (x y z):    1.00000e+00    5.00000e-01    0.00000e+00
+idx:      8 ID:      9 (x y z):    1.00000e+00    6.25000e-01    0.00000e+00
+idx:      9 ID:     10 (x y z):    1.00000e+00    7.50000e-01    0.00000e+00
+idx:     10 ID:     11 (x y z):    1.00000e+00    8.75000e-01    0.00000e+00
+idx:     11 ID:     12 (x y z):    1.00000e+00    6.25000e-02    0.00000e+00
+idx:     12 ID:     13 (x y z):    1.00000e+00    1.87500e-01    0.00000e+00
+idx:     13 ID:     14 (x y z):    1.00000e+00    3.12500e-01    0.00000e+00
+idx:     14 ID:     15 (x y z):    1.00000e+00    4.37500e-01    0.00000e+00
+idx:     15 ID:     16 (x y z):    1.00000e+00    5.62500e-01    0.00000e+00
+idx:     16 ID:     17 (x y z):    1.00000e+00    6.87500e-01    0.00000e+00
+idx:     17 ID:     18 (x y z):    1.00000e+00    8.12500e-01    0.00000e+00
+idx:     18 ID:     19 (x y z):    1.00000e+00    9.37500e-01    0.00000e+00
+idx:     19 ID:     20 (x y z):    8.75000e-01    1.00000e+00    0.00000e+00
+idx:     20 ID:     21 (x y z):    7.50000e-01    1.00000e+00    0.00000e+00
+idx:     21 ID:     22 (x y z):    6.25000e-01    1.00000e+00    0.00000e+00
+idx:     22 ID:     23 (x y z):    5.00000e-01    1.00000e+00    0.00000e+00
+idx:     23 ID:     24 (x y z):    3.75000e-01    1.00000e+00    0.00000e+00
+idx:     24 ID:     25 (x y z):    2.50000e-01    1.00000e+00    0.00000e+00
+idx:     25 ID:     26 (x y z):    1.25000e-01    1.00000e+00    0.00000e+00
+idx:     26 ID:     27 (x y z):    9.37500e-01    1.00000e+00    0.00000e+00
+idx:     27 ID:     28 (x y z):    8.12500e-01    1.00000e+00    0.00000e+00
+idx:     28 ID:     29 (x y z):    6.87500e-01    1.00000e+00    0.00000e+00
+idx:     29 ID:     30 (x y z):    5.62500e-01    1.00000e+00    0.00000e+00
+idx:     30 ID:     31 (x y z):    4.37500e-01    1.00000e+00    0.00000e+00
+idx:     31 ID:     32 (x y z):    3.12500e-01    1.00000e+00    0.00000e+00
+idx:     32 ID:     33 (x y z):    1.87500e-01    1.00000e+00    0.00000e+00
+idx:     33 ID:     34 (x y z):    6.25000e-02    1.00000e+00    0.00000e+00
+idx:     34 ID:     35 (x y z):    0.00000e+00    8.75000e-01    0.00000e+00
+idx:     35 ID:     36 (x y z):    0.00000e+00    7.50000e-01    0.00000e+00
+idx:     36 ID:     37 (x y z):    0.00000e+00    6.25000e-01    0.00000e+00
+idx:     37 ID:     38 (x y z):    0.00000e+00    5.00000e-01    0.00000e+00
+idx:     38 ID:     39 (x y z):    0.00000e+00    3.75000e-01    0.00000e+00
+idx:     39 ID:     40 (x y z):    0.00000e+00    2.50000e-01    0.00000e+00
+idx:     40 ID:     41 (x y z):    0.00000e+00    1.25000e-01    0.00000e+00
+idx:     41 ID:     42 (x y z):    0.00000e+00    9.37500e-01    0.00000e+00
+idx:     42 ID:     43 (x y z):    0.00000e+00    8.12500e-01    0.00000e+00
+idx:     43 ID:     44 (x y z):    0.00000e+00    6.87500e-01    0.00000e+00
+idx:     44 ID:     45 (x y z):    0.00000e+00    5.62500e-01    0.00000e+00
+idx:     45 ID:     46 (x y z):    0.00000e+00    4.37500e-01    0.00000e+00
+idx:     46 ID:     47 (x y z):    0.00000e+00    3.12500e-01    0.00000e+00
+idx:     47 ID:     48 (x y z):    0.00000e+00    1.87500e-01    0.00000e+00
+idx:     48 ID:     49 (x y z):    0.00000e+00    6.25000e-02    0.00000e+00
+idx:     49 ID:     50 (x y z):    1.25000e-01    0.00000e+00    0.00000e+00
+idx:     50 ID:     51 (x y z):    2.50000e-01    0.00000e+00    0.00000e+00
+idx:     51 ID:     52 (x y z):    3.75000e-01    0.00000e+00    0.00000e+00
+idx:     52 ID:     53 (x y z):    5.00000e-01    0.00000e+00    0.00000e+00
+idx:     53 ID:     54 (x y z):    6.25000e-01    0.00000e+00    0.00000e+00
+idx:     54 ID:     55 (x y z):    7.50000e-01    0.00000e+00    0.00000e+00
+idx:     55 ID:     56 (x y z):    8.75000e-01    0.00000e+00    0.00000e+00
+idx:     56 ID:     57 (x y z):    6.25000e-02    0.00000e+00    0.00000e+00
+idx:     57 ID:     58 (x y z):    1.87500e-01    0.00000e+00    0.00000e+00
+idx:     58 ID:     59 (x y z):    3.12500e-01    0.00000e+00    0.00000e+00
+idx:     59 ID:     60 (x y z):    4.37500e-01    0.00000e+00    0.00000e+00
+idx:     60 ID:     61 (x y z):    5.62500e-01    0.00000e+00    0.00000e+00
+idx:     61 ID:     62 (x y z):    6.87500e-01    0.00000e+00    0.00000e+00
+idx:     62 ID:     63 (x y z):    8.12500e-01    0.00000e+00    0.00000e+00
+idx:     63 ID:     64 (x y z):    9.37500e-01    0.00000e+00    0.00000e+00
+idx:     64 ID:     65 (x y z):    1.21259e-01    4.31121e-01    0.00000e+00
+idx:     65 ID:     66 (x y z):    8.89275e-01    5.64095e-01    0.00000e+00
+idx:     66 ID:     67 (x y z):    4.37500e-01    8.91747e-01    0.00000e+00
+idx:     67 ID:     68 (x y z):    5.62500e-01    1.08253e-01    0.00000e+00
+idx:     68 ID:     69 (x y z):    1.08253e-01    6.87500e-01    0.00000e+00
+idx:     69 ID:     70 (x y z):    6.90108e-01    8.92985e-01    0.00000e+00
+idx:     70 ID:     71 (x y z):    3.12811e-01    1.04493e-01    0.00000e+00
+idx:     71 ID:     72 (x y z):    8.81737e-01    3.30774e-01    0.00000e+00
+idx:     72 ID:     73 (x y z):    8.90515e-01    7.96658e-01    0.00000e+00
+idx:     73 ID:     74 (x y z):    1.88030e-01    8.94153e-01    0.00000e+00
+idx:     74 ID:     75 (x y z):    8.12500e-01    1.08253e-01    0.00000e+00
+idx:     75 ID:     76 (x y z):    1.20770e-01    1.86909e-01    0.00000e+00
+idx:     76 ID:     77 (x y z):    3.12588e-01    8.92148e-01    0.00000e+00
+idx:     77 ID:     78 (x y z):    3.77762e-01    7.85146e-01    0.00000e+00
+idx:     78 ID:     79 (x y z):    5.00460e-01    7.83769e-01    0.00000e+00
+idx:     79 ID:     80 (x y z):    4.40784e-01    6.77148e-01    0.00000e+00
+idx:     80 ID:     81 (x y z):    5.64960e-01    6.76750e-01    0.00000e+00
+idx:     81 ID:     82 (x y z):    5.00488e-01    5.67278e-01    0.00000e+00
+idx:     82 ID:     83 (x y z):    3.86943e-01    5.67299e-01    0.00000e+00
+idx:     83 ID:     84 (x y z):    4.43010e-01    4.56849e-01    0.00000e+00
+idx:     84 ID:     85 (x y z):    5.63500e-01    4.58468e-01    0.00000e+00
+idx:     85 ID:     86 (x y z):    5.01085e-01    3.50123e-01    0.00000e+00
+idx:     86 ID:     87 (x y z):    3.79538e-01    3.48122e-01    0.00000e+00
+idx:     87 ID:     88 (x y z):    6.25127e-01    3.50443e-01    0.00000e+00
+idx:     88 ID:     89 (x y z):    6.87688e-01    4.58684e-01    0.00000e+00
+idx:     89 ID:     90 (x y z):    4.37500e-01    2.42228e-01    0.00000e+00
+idx:     90 ID:     91 (x y z):    7.50000e-01    3.50481e-01    0.00000e+00
+idx:     91 ID:     92 (x y z):    6.86682e-01    2.47629e-01    0.00000e+00
+idx:     92 ID:     93 (x y z):    3.14119e-01    2.49655e-01    0.00000e+00
+idx:     93 ID:     94 (x y z):    2.44186e-01    3.57736e-01    0.00000e+00
+idx:     94 ID:     95 (x y z):    8.12429e-01    4.55002e-01    0.00000e+00
+idx:     95 ID:     96 (x y z):    7.50000e-01    5.66987e-01    0.00000e+00
+idx:     96 ID:     97 (x y z):    8.22127e-01    6.76786e-01    0.00000e+00
+idx:     97 ID:     98 (x y z):    6.98516e-01    6.82117e-01    0.00000e+00
+idx:     98 ID:     99 (x y z):    7.62432e-01    7.86877e-01    0.00000e+00
+idx:     99 ID:    100 (x y z):    2.35333e-01    7.70934e-01    0.00000e+00
+idx:    100 ID:    101 (x y z):    1.08253e-01    3.12500e-01    0.00000e+00
+idx:    101 ID:    102 (x y z):    2.22577e-01    4.73447e-01    0.00000e+00
+idx:    102 ID:    103 (x y z):    1.37123e-01    5.61798e-01    0.00000e+00
+idx:    103 ID:    104 (x y z):    2.18093e-01    6.54809e-01    0.00000e+00
+idx:    104 ID:    105 (x y z):    6.28450e-01    7.85075e-01    0.00000e+00
+idx:    105 ID:    106 (x y z):    6.87500e-01    1.08253e-01    0.00000e+00
+idx:    106 ID:    107 (x y z):    4.37500e-01    1.08253e-01    0.00000e+00
+idx:    107 ID:    108 (x y z):    5.63276e-01    8.92115e-01    0.00000e+00
+idx:    108 ID:    109 (x y z):    6.27525e-01    5.68381e-01    0.00000e+00
+idx:    109 ID:    110 (x y z):    5.62500e-01    2.42228e-01    0.00000e+00
+idx:    110 ID:    111 (x y z):    1.04100e-01    8.12068e-01    0.00000e+00
+idx:    111 ID:    112 (x y z):    1.91854e-01    9.29256e-02    0.00000e+00
+idx:    112 ID:    113 (x y z):    8.96584e-01    1.93362e-01    0.00000e+00
+idx:    113 ID:    114 (x y z):    8.08867e-01    8.97173e-01    0.00000e+00
+idx:    114 ID:    115 (x y z):    2.07673e-01    2.56289e-01    0.00000e+00
+idx:    115 ID:    116 (x y z):    7.98911e-01    2.50073e-01    0.00000e+00
+idx:    116 ID:    117 (x y z):    3.26073e-01    6.77601e-01    0.00000e+00
+idx:    117 ID:    118 (x y z):    9.15464e-01    4.37500e-01    0.00000e+00
+idx:    118 ID:    119 (x y z):    3.28160e-01    4.57724e-01    0.00000e+00
+idx:    119 ID:    120 (x y z):    9.22662e-01    6.87500e-01    0.00000e+00
+idx:    120 ID:    121 (x y z):    9.15064e-02    9.08494e-01    0.00000e+00
+idx:    121 ID:    122 (x y z):    9.08494e-01    9.08494e-01    0.00000e+00
+idx:    122 ID:    123 (x y z):    9.15064e-02    9.15064e-02    0.00000e+00
+idx:    123 ID:    124 (x y z):    9.08494e-01    9.15064e-02    0.00000e+00
+idx:    124 ID:    125 (x y z):    2.69828e-01    5.65447e-01    0.00000e+00
+idx:    125 ID:    126 (x y z):    6.25000e-01    1.75240e-01    0.00000e+00
+idx:    126 ID:    127 (x y z):    5.00000e-01    1.75240e-01    0.00000e+00
+idx:    127 ID:    128 (x y z):    3.75000e-01    1.75240e-01    0.00000e+00
+idx:    128 ID:    129 (x y z):    7.39839e-01    1.75307e-01    0.00000e+00
+idx:    129 ID:    130 (x y z):    2.51036e-01    1.74645e-01    0.00000e+00
+idx:    130 ID:    131 (x y z):    1.71793e-01    7.29217e-01    0.00000e+00
+idx:    131 ID:    132 (x y z):    1.69716e-01    7.91501e-01    0.00000e+00
+idx:    132 ID:    133 (x y z):    1.06176e-01    7.49784e-01    0.00000e+00
+idx:    133 ID:    134 (x y z):    1.63173e-01    6.71154e-01    0.00000e+00
+idx:    134 ID:    135 (x y z):    2.26713e-01    7.12871e-01    0.00000e+00
+idx:    135 ID:    136 (x y z):    1.82723e-01    3.94429e-01    0.00000e+00
+idx:    136 ID:    137 (x y z):    1.14756e-01    3.71811e-01    0.00000e+00
+idx:    137 ID:    138 (x y z):    1.76220e-01    3.35118e-01    0.00000e+00
+idx:    138 ID:    139 (x y z):    8.15869e-01    3.40627e-01    0.00000e+00
+idx:    139 ID:    140 (x y z):    8.47083e-01    3.92888e-01    0.00000e+00
+idx:    140 ID:    141 (x y z):    7.81214e-01    4.02742e-01    0.00000e+00
+idx:    141 ID:    142 (x y z):    2.33382e-01    4.15592e-01    0.00000e+00
+idx:    142 ID:    143 (x y z):    1.71918e-01    4.52284e-01    0.00000e+00
+idx:    143 ID:    144 (x y z):    8.98601e-01    3.84137e-01    0.00000e+00
+idx:    144 ID:    145 (x y z):    8.63947e-01    4.46251e-01    0.00000e+00
+idx:    145 ID:    146 (x y z):    6.85615e-02    5.30899e-01    0.00000e+00
+idx:    146 ID:    147 (x y z):    6.85615e-02    5.93399e-01    0.00000e+00
+idx:    147 ID:    148 (x y z):    8.56321e-01    7.36722e-01    0.00000e+00
+idx:    148 ID:    149 (x y z):    8.26473e-01    7.91767e-01    0.00000e+00
+idx:    149 ID:    150 (x y z):    7.92279e-01    7.31831e-01    0.00000e+00
+idx:    150 ID:    151 (x y z):    7.26270e-01    8.39931e-01    0.00000e+00
+idx:    151 ID:    152 (x y z):    6.59279e-01    8.39030e-01    0.00000e+00
+idx:    152 ID:    153 (x y z):    6.95441e-01    7.85976e-01    0.00000e+00
+idx:    153 ID:    154 (x y z):    8.72395e-01    6.82143e-01    0.00000e+00
+idx:    154 ID:    155 (x y z):    9.06589e-01    7.42079e-01    0.00000e+00
+idx:    155 ID:    156 (x y z):    6.06296e-02    4.65561e-01    0.00000e+00
+idx:    156 ID:    157 (x y z):    1.29191e-01    4.96460e-01    0.00000e+00
+idx:    157 ID:    158 (x y z):    5.41266e-02    6.56250e-01    0.00000e+00
+idx:    158 ID:    159 (x y z):    1.22688e-01    6.24649e-01    0.00000e+00
+idx:    159 ID:    160 (x y z):    8.19638e-01    5.65541e-01    0.00000e+00
+idx:    160 ID:    161 (x y z):    8.55701e-01    6.20440e-01    0.00000e+00
+idx:    161 ID:    162 (x y z):    7.86063e-01    6.21887e-01    0.00000e+00
+idx:    162 ID:    163 (x y z):    8.50852e-01    5.09549e-01    0.00000e+00
+idx:    163 ID:    164 (x y z):    7.81214e-01    5.10995e-01    0.00000e+00
+idx:    164 ID:    165 (x y z):    6.31738e-01    6.79434e-01    0.00000e+00
+idx:    165 ID:    166 (x y z):    5.96243e-01    6.22566e-01    0.00000e+00
+idx:    166 ID:    167 (x y z):    6.63021e-01    6.25249e-01    0.00000e+00
+idx:    167 ID:    168 (x y z):    7.30474e-01    7.34497e-01    0.00000e+00
+idx:    168 ID:    169 (x y z):    6.63483e-01    7.33596e-01    0.00000e+00
+idx:    169 ID:    170 (x y z):    2.11681e-01    8.32544e-01    0.00000e+00
+idx:    170 ID:    171 (x y z):    1.46065e-01    8.53111e-01    0.00000e+00
+idx:    171 ID:    172 (x y z):    1.79850e-01    5.17623e-01    0.00000e+00
+idx:    172 ID:    173 (x y z):    7.24258e-01    6.24552e-01    0.00000e+00
+idx:    173 ID:    174 (x y z):    6.88763e-01    5.67684e-01    0.00000e+00
+idx:    174 ID:    175 (x y z):    5.96705e-01    7.30913e-01    0.00000e+00
+idx:    175 ID:    176 (x y z):    2.46203e-01    5.19447e-01    0.00000e+00
+idx:    176 ID:    177 (x y z):    2.03476e-01    5.63622e-01    0.00000e+00
+idx:    177 ID:    178 (x y z):    1.77608e-01    6.08304e-01    0.00000e+00
+idx:    178 ID:    179 (x y z):    2.43960e-01    6.10128e-01    0.00000e+00
+idx:    179 ID:    180 (x y z):    1.57963e-01    2.84395e-01    0.00000e+00
+idx:    180 ID:    181 (x y z):    2.25929e-01    3.07013e-01    0.00000e+00
+idx:    181 ID:    182 (x y z):    7.74456e-01    3.00277e-01    0.00000e+00
+idx:    182 ID:    183 (x y z):    8.40324e-01    2.90424e-01    0.00000e+00
+idx:    183 ID:    184 (x y z):    7.60321e-01    6.79451e-01    0.00000e+00
+idx:    184 ID:    185 (x y z):    8.54542e-01    1.50808e-01    0.00000e+00
+idx:    185 ID:    186 (x y z):    8.47748e-01    2.21718e-01    0.00000e+00
+idx:    186 ID:    187 (x y z):    8.05706e-01    1.79163e-01    0.00000e+00
+idx:    187 ID:    188 (x y z):    7.69375e-01    2.12690e-01    0.00000e+00
+idx:    188 ID:    189 (x y z):    7.76170e-01    1.41780e-01    0.00000e+00
+idx:    189 ID:    190 (x y z):    2.72083e-01    6.66205e-01    0.00000e+00
+idx:    190 ID:    191 (x y z):    2.80703e-01    7.24268e-01    0.00000e+00
+idx:    191 ID:    192 (x y z):    7.85649e-01    8.42025e-01    0.00000e+00
+idx:    192 ID:    193 (x y z):    7.49487e-01    8.95079e-01    0.00000e+00
+idx:    193 ID:    194 (x y z):    3.75044e-01    8.91947e-01    0.00000e+00
+idx:    194 ID:    195 (x y z):    3.45175e-01    8.38647e-01    0.00000e+00
+idx:    195 ID:    196 (x y z):    4.07631e-01    8.38447e-01    0.00000e+00
+idx:    196 ID:    197 (x y z):    4.06250e-01    9.45873e-01    0.00000e+00
+idx:    197 ID:    198 (x y z):    3.43794e-01    9.46074e-01    0.00000e+00
+idx:    198 ID:    199 (x y z):    6.06296e-02    4.03061e-01    0.00000e+00
+idx:    199 ID:    200 (x y z):    5.41266e-02    3.43750e-01    0.00000e+00
+idx:    200 ID:    201 (x y z):    4.68750e-01    9.45873e-01    0.00000e+00
+idx:    201 ID:    202 (x y z):    2.50309e-01    8.93151e-01    0.00000e+00
+idx:    202 ID:    203 (x y z):    2.73961e-01    8.31541e-01    0.00000e+00
+idx:    203 ID:    204 (x y z):    6.26692e-01    8.92550e-01    0.00000e+00
+idx:    204 ID:    205 (x y z):    5.95863e-01    8.38595e-01    0.00000e+00
+idx:    205 ID:    206 (x y z):    6.57554e-01    9.46492e-01    0.00000e+00
+idx:    206 ID:    207 (x y z):    5.94138e-01    9.46058e-01    0.00000e+00
+idx:    207 ID:    208 (x y z):    2.19015e-01    9.47077e-01    0.00000e+00
+idx:    208 ID:    209 (x y z):    2.81294e-01    9.46074e-01    0.00000e+00
+idx:    209 ID:    210 (x y z):    5.00388e-01    8.91931e-01    0.00000e+00
+idx:    210 ID:    211 (x y z):    5.31638e-01    9.46058e-01    0.00000e+00
+idx:    211 ID:    212 (x y z):    5.93750e-01    5.41266e-02    0.00000e+00
+idx:    212 ID:    213 (x y z):    6.56250e-01    5.41266e-02    0.00000e+00
+idx:    213 ID:    214 (x y z):    6.25000e-01    1.08253e-01    0.00000e+00
+idx:    214 ID:    215 (x y z):    9.44638e-01    5.94547e-01    0.00000e+00
+idx:    215 ID:    216 (x y z):    9.44638e-01    5.32047e-01    0.00000e+00
+idx:    216 ID:    217 (x y z):    6.03848e-02    2.18455e-01    0.00000e+00
+idx:    217 ID:    218 (x y z):    1.14511e-01    2.49705e-01    0.00000e+00
+idx:    218 ID:    219 (x y z):    5.41266e-02    2.81250e-01    0.00000e+00
+idx:    219 ID:    220 (x y z):    5.31250e-01    5.41266e-02    0.00000e+00
+idx:    220 ID:    221 (x y z):    3.43905e-01    5.22466e-02    0.00000e+00
+idx:    221 ID:    222 (x y z):    4.06250e-01    5.41266e-02    0.00000e+00
+idx:    222 ID:    223 (x y z):    3.75155e-01    1.06373e-01    0.00000e+00
+idx:    223 ID:    224 (x y z):    4.39111e-01    7.84458e-01    0.00000e+00
+idx:    224 ID:    225 (x y z):    4.68980e-01    8.37758e-01    0.00000e+00
+idx:    225 ID:    226 (x y z):    5.00000e-01    1.08253e-01    0.00000e+00
+idx:    226 ID:    227 (x y z):    4.68750e-01    5.41266e-02    0.00000e+00
+idx:    227 ID:    228 (x y z):    5.31868e-01    8.37942e-01    0.00000e+00
+idx:    228 ID:    229 (x y z):    7.81250e-01    5.41266e-02    0.00000e+00
+idx:    229 ID:    230 (x y z):    7.50000e-01    1.08253e-01    0.00000e+00
+idx:    230 ID:    231 (x y z):    7.18750e-01    5.41266e-02    0.00000e+00
+idx:    231 ID:    232 (x y z):    1.56515e-01    9.47077e-01    0.00000e+00
+idx:    232 ID:    233 (x y z):    5.64455e-01    7.84422e-01    0.00000e+00
+idx:    233 ID:    234 (x y z):    3.06547e-01    7.78040e-01    0.00000e+00
+idx:    234 ID:    235 (x y z):    9.45257e-01    8.35829e-01    0.00000e+00
+idx:    235 ID:    236 (x y z):    9.45257e-01    7.73329e-01    0.00000e+00
+idx:    236 ID:    237 (x y z):    6.03848e-02    1.55955e-01    0.00000e+00
+idx:    237 ID:    238 (x y z):    8.43750e-01    5.41266e-02    0.00000e+00
+idx:    238 ID:    239 (x y z):    2.81405e-01    5.22466e-02    0.00000e+00
+idx:    239 ID:    240 (x y z):    4.09273e-01    7.31147e-01    0.00000e+00
+idx:    240 ID:    241 (x y z):    4.70622e-01    7.30458e-01    0.00000e+00
+idx:    241 ID:    242 (x y z):    7.18844e-01    5.12835e-01    0.00000e+00
+idx:    242 ID:    243 (x y z):    6.57607e-01    5.13532e-01    0.00000e+00
+idx:    243 ID:    244 (x y z):    3.46828e-01    2.98889e-01    0.00000e+00
+idx:    244 ID:    245 (x y z):    3.11862e-01    3.52929e-01    0.00000e+00
+idx:    245 ID:    246 (x y z):    2.79152e-01    3.03696e-01    0.00000e+00
+idx:    246 ID:    247 (x y z):    7.50058e-01    4.56843e-01    0.00000e+00
+idx:    247 ID:    248 (x y z):    9.40869e-01    3.52887e-01    0.00000e+00
+idx:    248 ID:    249 (x y z):    9.40869e-01    2.90387e-01    0.00000e+00
+idx:    249 ID:    250 (x y z):    5.41266e-02    7.18750e-01    0.00000e+00
+idx:    250 ID:    251 (x y z):    4.70636e-01    6.22213e-01    0.00000e+00
+idx:    251 ID:    252 (x y z):    4.13863e-01    6.22224e-01    0.00000e+00
+idx:    252 ID:    253 (x y z):    4.43716e-01    5.67289e-01    0.00000e+00
+idx:    253 ID:    254 (x y z):    4.72048e-01    4.03486e-01    0.00000e+00
+idx:    254 ID:    255 (x y z):    4.11274e-01    4.02486e-01    0.00000e+00
+idx:    255 ID:    256 (x y z):    4.40311e-01    3.49122e-01    0.00000e+00
+idx:    256 ID:    257 (x y z):    5.32710e-01    7.30260e-01    0.00000e+00
+idx:    257 ID:    258 (x y z):    7.18844e-01    4.04582e-01    0.00000e+00
+idx:    258 ID:    259 (x y z):    5.94313e-01    4.04456e-01    0.00000e+00
+idx:    259 ID:    260 (x y z):    6.56407e-01    4.04563e-01    0.00000e+00
+idx:    260 ID:    261 (x y z):    6.25594e-01    4.58576e-01    0.00000e+00
+idx:    261 ID:    262 (x y z):    4.14977e-01    5.12074e-01    0.00000e+00
+idx:    262 ID:    263 (x y z):    4.71749e-01    5.12064e-01    0.00000e+00
+idx:    263 ID:    264 (x y z):    5.02872e-01    6.76949e-01    0.00000e+00
+idx:    264 ID:    265 (x y z):    4.08519e-01    2.95175e-01    0.00000e+00
+idx:    265 ID:    266 (x y z):    4.69293e-01    2.96175e-01    0.00000e+00
+idx:    266 ID:    267 (x y z):    7.20054e-01    9.46492e-01    0.00000e+00
+idx:    267 ID:    268 (x y z):    6.87563e-01    3.50462e-01    0.00000e+00
+idx:    268 ID:    269 (x y z):    5.32724e-01    6.22014e-01    0.00000e+00
+idx:    269 ID:    270 (x y z):    5.03255e-01    4.57659e-01    0.00000e+00
+idx:    270 ID:    271 (x y z):    5.32292e-01    4.04295e-01    0.00000e+00
+idx:    271 ID:    272 (x y z):    5.31994e-01    5.12873e-01    0.00000e+00
+idx:    272 ID:    273 (x y z):    5.63106e-01    3.50283e-01    0.00000e+00
+idx:    273 ID:    274 (x y z):    3.75809e-01    2.45942e-01    0.00000e+00
+idx:    274 ID:    275 (x y z):    5.64007e-01    5.67829e-01    0.00000e+00
+idx:    275 ID:    276 (x y z):    5.95513e-01    5.13425e-01    0.00000e+00
+idx:    276 ID:    277 (x y z):    6.55904e-01    2.99036e-01    0.00000e+00
+idx:    277 ID:    278 (x y z):    7.18341e-01    2.99055e-01    0.00000e+00
+idx:    278 ID:    279 (x y z):    5.00000e-01    2.42228e-01    0.00000e+00
+idx:    279 ID:    280 (x y z):    5.31793e-01    2.96175e-01    0.00000e+00
+idx:    280 ID:    281 (x y z):    5.93813e-01    2.96335e-01    0.00000e+00
+idx:    281 ID:    282 (x y z):    6.24591e-01    2.44928e-01    0.00000e+00
+idx:    282 ID:    283 (x y z):    2.86173e-01    4.07730e-01    0.00000e+00
+idx:    283 ID:    284 (x y z):    2.75368e-01    4.65586e-01    0.00000e+00
+idx:    284 ID:    285 (x y z):    1.56312e-01    1.39918e-01    0.00000e+00
+idx:    285 ID:    286 (x y z):    2.21445e-01    1.33785e-01    0.00000e+00
+idx:    286 ID:    287 (x y z):    1.85903e-01    1.80777e-01    0.00000e+00
+idx:    287 ID:    288 (x y z):    1.64221e-01    2.21599e-01    0.00000e+00
+idx:    288 ID:    289 (x y z):    2.29354e-01    2.15467e-01    0.00000e+00
+idx:    289 ID:    290 (x y z):    5.20498e-02    7.81034e-01    0.00000e+00
+idx:    290 ID:    291 (x y z):    5.20498e-02    8.43534e-01    0.00000e+00
+idx:    291 ID:    292 (x y z):    2.20927e-01    4.64628e-02    0.00000e+00
+idx:    292 ID:    293 (x y z):    1.58427e-01    4.64628e-02    0.00000e+00
+idx:    293 ID:    294 (x y z):    9.48292e-01    2.21681e-01    0.00000e+00
+idx:    294 ID:    295 (x y z):    9.48292e-01    1.59181e-01    0.00000e+00
+idx:    295 ID:    296 (x y z):    9.02370e-01    5.00797e-01    0.00000e+00
+idx:    296 ID:    297 (x y z):    7.79433e-01    9.48587e-01    0.00000e+00
+idx:    297 ID:    298 (x y z):    8.41933e-01    9.48587e-01    0.00000e+00
+idx:    298 ID:    299 (x y z):    9.05969e-01    6.25797e-01    0.00000e+00
+idx:    299 ID:    300 (x y z):    2.52332e-01    9.87094e-02    0.00000e+00
+idx:    300 ID:    301 (x y z):    8.89161e-01    2.62068e-01    0.00000e+00
+idx:    301 ID:    302 (x y z):    3.57551e-01    5.12512e-01    0.00000e+00
+idx:    302 ID:    303 (x y z):    3.28385e-01    5.66373e-01    0.00000e+00
+idx:    303 ID:    304 (x y z):    2.98994e-01    5.11585e-01    0.00000e+00
+idx:    304 ID:    305 (x y z):    8.49691e-01    8.46916e-01    0.00000e+00
+idx:    305 ID:    306 (x y z):    3.83429e-01    6.77374e-01    0.00000e+00
+idx:    306 ID:    307 (x y z):    3.56508e-01    6.22450e-01    0.00000e+00
+idx:    307 ID:    308 (x y z):    3.51918e-01    7.31374e-01    0.00000e+00
+idx:    308 ID:    309 (x y z):    9.57732e-01    4.68750e-01    0.00000e+00
+idx:    309 ID:    310 (x y z):    9.57732e-01    4.06250e-01    0.00000e+00
+idx:    310 ID:    311 (x y z):    3.53849e-01    4.02923e-01    0.00000e+00
+idx:    311 ID:    312 (x y z):    3.85585e-01    4.57287e-01    0.00000e+00
+idx:    312 ID:    313 (x y z):    9.61331e-01    6.56250e-01    0.00000e+00
+idx:    313 ID:    314 (x y z):    9.61331e-01    7.18750e-01    0.00000e+00
+idx:    314 ID:    315 (x y z):    4.57532e-02    8.91747e-01    0.00000e+00
+idx:    315 ID:    316 (x y z):    4.57532e-02    9.54247e-01    0.00000e+00
+idx:    316 ID:    317 (x y z):    8.91747e-01    9.54247e-01    0.00000e+00
+idx:    317 ID:    318 (x y z):    9.54247e-01    9.54247e-01    0.00000e+00
+idx:    318 ID:    319 (x y z):    1.08253e-01    4.57532e-02    0.00000e+00
+idx:    319 ID:    320 (x y z):    4.57532e-02    4.57532e-02    0.00000e+00
+idx:    320 ID:    321 (x y z):    4.57532e-02    1.08253e-01    0.00000e+00
+idx:    321 ID:    322 (x y z):    9.54247e-01    1.08253e-01    0.00000e+00
+idx:    322 ID:    323 (x y z):    9.54247e-01    4.57532e-02    0.00000e+00
+idx:    323 ID:    324 (x y z):    8.91747e-01    4.57532e-02    0.00000e+00
+idx:    324 ID:    325 (x y z):    1.08253e-01    9.54247e-01    0.00000e+00
+idx:    325 ID:    326 (x y z):    9.54247e-01    8.91747e-01    0.00000e+00
+idx:    326 ID:    327 (x y z):    2.97951e-01    6.21524e-01    0.00000e+00
+idx:    327 ID:    328 (x y z):    2.60896e-01    2.52972e-01    0.00000e+00
+idx:    328 ID:    329 (x y z):    7.42797e-01    2.48851e-01    0.00000e+00
+idx:    329 ID:    330 (x y z):    9.02539e-01    1.42434e-01    0.00000e+00
+idx:    330 ID:    331 (x y z):    9.78029e-02    8.60281e-01    0.00000e+00
+idx:    331 ID:    332 (x y z):    1.41680e-01    9.22160e-02    0.00000e+00
+idx:    332 ID:    333 (x y z):    1.39768e-01    9.01324e-01    0.00000e+00
+idx:    333 ID:    334 (x y z):    8.99504e-01    8.52576e-01    0.00000e+00
+idx:    334 ID:    335 (x y z):    1.06138e-01    1.39208e-01    0.00000e+00
+idx:    335 ID:    336 (x y z):    8.60497e-01    9.98798e-02    0.00000e+00
+idx:    336 ID:    337 (x y z):    8.58680e-01    9.02833e-01    0.00000e+00
+idx:    337 ID:    338 (x y z):    6.55841e-01    2.11435e-01    0.00000e+00
+idx:    338 ID:    339 (x y z):    6.82420e-01    1.75274e-01    0.00000e+00
+idx:    339 ID:    340 (x y z):    7.13261e-01    2.11468e-01    0.00000e+00
+idx:    340 ID:    341 (x y z):    4.06250e-01    1.41747e-01    0.00000e+00
+idx:    341 ID:    342 (x y z):    3.43905e-01    1.39867e-01    0.00000e+00
+idx:    342 ID:    343 (x y z):    5.93750e-01    2.08734e-01    0.00000e+00
+idx:    343 ID:    344 (x y z):    5.31250e-01    2.08734e-01    0.00000e+00
+idx:    344 ID:    345 (x y z):    5.62500e-01    1.75240e-01    0.00000e+00
+idx:    345 ID:    346 (x y z):    6.56250e-01    1.41747e-01    0.00000e+00
+idx:    346 ID:    347 (x y z):    5.93750e-01    1.41747e-01    0.00000e+00
+idx:    347 ID:    348 (x y z):    5.31250e-01    1.41747e-01    0.00000e+00
+idx:    348 ID:    349 (x y z):    4.68750e-01    2.08734e-01    0.00000e+00
+idx:    349 ID:    350 (x y z):    4.68750e-01    1.41747e-01    0.00000e+00
+idx:    350 ID:    351 (x y z):    3.44559e-01    2.12448e-01    0.00000e+00
+idx:    351 ID:    352 (x y z):    4.06250e-01    2.08734e-01    0.00000e+00
+idx:    352 ID:    353 (x y z):    4.37500e-01    1.75240e-01    0.00000e+00
+idx:    353 ID:    354 (x y z):    7.13670e-01    1.41780e-01    0.00000e+00
+idx:    354 ID:    355 (x y z):    2.82577e-01    2.12150e-01    0.00000e+00
+idx:    355 ID:    356 (x y z):    3.13018e-01    1.74943e-01    0.00000e+00
+idx:    356 ID:    357 (x y z):    2.81923e-01    1.39569e-01    0.00000e+00</code></pre><p id="25c1cd7c-3133-80b5-8acb-c6978f8eec48" class="">節点は357節点あり，IDはgmshでのnodeTag, idxは節点を std::vector に格納したときのインデックス</p></details></li></ul><ul id="25c1cd7c-3133-8077-a213-e6f5fc93bddd" class="toggle"><li><details open=""><summary>実行結果（mshから読んだ要素情報）</summary><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-80a4-b5df-fc57fe55cf35" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">number of elems = 162
+idx:      0 ID:     37 nodeIDs:     69    100    111    131    132    133
+idx:      1 ID:     38 nodeIDs:    100     69    104    131    134    135
+idx:      2 ID:     39 nodeIDs:     94     65    101    136    137    138
+idx:      3 ID:     40 nodeIDs:     91     72     95    139    140    141
+idx:      4 ID:     41 nodeIDs:     65     94    102    136    142    143
+idx:      5 ID:     42 nodeIDs:     95     72    118    140    144    145
+idx:      6 ID:     43 nodeIDs:     37     38    103     45    146    147
+idx:      7 ID:     44 nodeIDs:     97     73     99    148    149    150
+idx:      8 ID:     45 nodeIDs:     99     70    105    151    152    153
+idx:      9 ID:     46 nodeIDs:     73     97    120    148    154    155
+idx:     10 ID:     47 nodeIDs:     38     65    103    156    157    146
+idx:     11 ID:     48 nodeIDs:     69     37    103    158    147    159
+idx:     12 ID:     49 nodeIDs:     96     66     97    160    161    162
+idx:     13 ID:     50 nodeIDs:     95     66     96    163    160    164
+idx:     14 ID:     51 nodeIDs:     98     81    109    165    166    167
+idx:     15 ID:     52 nodeIDs:     98     99    105    168    153    169
+idx:     16 ID:     53 nodeIDs:    100     74    111    170    171    132
+idx:     17 ID:     54 nodeIDs:     65    102    103    143    172    157
+idx:     18 ID:     55 nodeIDs:     96     98    109    173    167    174
+idx:     19 ID:     56 nodeIDs:     81     98    105    165    169    175
+idx:     20 ID:     57 nodeIDs:    103    102    125    172    176    177
+idx:     21 ID:     58 nodeIDs:    104    103    125    178    177    179
+idx:     22 ID:     59 nodeIDs:     94    101    115    138    180    181
+idx:     23 ID:     60 nodeIDs:     72     91    116    139    182    183
+idx:     24 ID:     61 nodeIDs:     96     97     98    162    184    173
+idx:     25 ID:     62 nodeIDs:     75    113    116    185    186    187
+idx:     26 ID:     63 nodeIDs:     75    116    129    187    188    189
+idx:     27 ID:     64 nodeIDs:    100    104    117    135    190    191
+idx:     28 ID:     65 nodeIDs:     69    103    104    159    178    134
+idx:     29 ID:     66 nodeIDs:     98     97     99    184    150    168
+idx:     30 ID:     67 nodeIDs:     70     99    114    151    192    193
+idx:     31 ID:     68 nodeIDs:     67     77     78    194    195    196
+idx:     32 ID:     69 nodeIDs:     67     24     77    197    198    194
+idx:     33 ID:     70 nodeIDs:     65     39    101    199    200    137
+idx:     34 ID:     71 nodeIDs:     23     24     67     31    197    201
+idx:     35 ID:     72 nodeIDs:     77     74    100    202    170    203
+idx:     36 ID:     73 nodeIDs:     38     39     65     46    199    156
+idx:     37 ID:     74 nodeIDs:    105     70    108    152    204    205
+idx:     38 ID:     75 nodeIDs:     70     22    108    206    207    204
+idx:     39 ID:     76 nodeIDs:     25     74     77    208    202    209
+idx:     40 ID:     77 nodeIDs:     23     67    108    201    210    211
+idx:     41 ID:     78 nodeIDs:     68     54    106    212    213    214
+idx:     42 ID:     79 nodeIDs:      8      9     66     16    215    216
+idx:     43 ID:     80 nodeIDs:     40     76    101    217    218    219
+idx:     44 ID:     81 nodeIDs:     53     54     68     61    212    220
+idx:     45 ID:     82 nodeIDs:     22     23    108     30    211    207
+idx:     46 ID:     83 nodeIDs:     24     25     77     32    209    198
+idx:     47 ID:     84 nodeIDs:     71     52    107    221    222    223
+idx:     48 ID:     85 nodeIDs:     67     78     79    196    224    225
+idx:     49 ID:     86 nodeIDs:     39     40    101     47    219    200
+idx:     50 ID:     87 nodeIDs:     53     68    107    220    226    227
+idx:     51 ID:     88 nodeIDs:     67     79    108    225    228    210
+idx:     52 ID:     89 nodeIDs:     55     75    106    229    230    231
+idx:     53 ID:     90 nodeIDs:     52     53    107     60    227    222
+idx:     54 ID:     91 nodeIDs:     25     26     74     33    232    208
+idx:     55 ID:     92 nodeIDs:     79    105    108    233    205    228
+idx:     56 ID:     93 nodeIDs:     78     77    100    195    203    234
+idx:     57 ID:     94 nodeIDs:     54     55    106     62    231    213
+idx:     58 ID:     95 nodeIDs:     10     11     73     18    235    236
+idx:     59 ID:     96 nodeIDs:     40     41     76     48    237    217
+idx:     60 ID:     97 nodeIDs:     55     56     75     63    238    229
+idx:     61 ID:     98 nodeIDs:     51     52     71     59    221    239
+idx:     62 ID:     99 nodeIDs:     79     78     80    224    240    241
+idx:     63 ID:    100 nodeIDs:     89     96    109    242    174    243
+idx:     64 ID:    101 nodeIDs:     93     87     94    244    245    246
+idx:     65 ID:    102 nodeIDs:     89     95     96    247    164    242
+idx:     66 ID:    103 nodeIDs:      6      7     72     14    248    249
+idx:     67 ID:    104 nodeIDs:     36     37     69     44    158    250
+idx:     68 ID:    105 nodeIDs:     82     80     83    251    252    253
+idx:     69 ID:    106 nodeIDs:     86     84     87    254    255    256
+idx:     70 ID:    107 nodeIDs:     79     81    105    257    175    233
+idx:     71 ID:    108 nodeIDs:     89     91     95    258    141    247
+idx:     72 ID:    109 nodeIDs:     85     88     89    259    260    261
+idx:     73 ID:    110 nodeIDs:     82     83     84    253    262    263
+idx:     74 ID:    111 nodeIDs:     79     80     81    241    264    257
+idx:     75 ID:    112 nodeIDs:     86     87     90    256    265    266
+idx:     76 ID:    113 nodeIDs:     21     22     70     29    206    267
+idx:     77 ID:    114 nodeIDs:     89     88     91    260    268    258
+idx:     78 ID:    115 nodeIDs:     81     80     82    264    251    269
+idx:     79 ID:    116 nodeIDs:     85     84     86    270    254    271
+idx:     80 ID:    117 nodeIDs:     82     84     85    263    270    272
+idx:     81 ID:    118 nodeIDs:     85     86     88    271    273    259
+idx:     82 ID:    119 nodeIDs:     90     87     93    265    244    274
+idx:     83 ID:    120 nodeIDs:     81     82    109    269    275    166
+idx:     84 ID:    121 nodeIDs:     85     89    109    261    243    276
+idx:     85 ID:    122 nodeIDs:     82     85    109    272    276    275
+idx:     86 ID:    123 nodeIDs:     91     88     92    268    277    278
+idx:     87 ID:    124 nodeIDs:     86     90    110    266    279    280
+idx:     88 ID:    125 nodeIDs:     88     86    110    273    280    281
+idx:     89 ID:    126 nodeIDs:     92     88    110    277    281    282
+idx:     90 ID:    127 nodeIDs:    102     94    119    142    283    284
+idx:     91 ID:    128 nodeIDs:     76    112    130    285    286    287
+idx:     92 ID:    129 nodeIDs:    115     76    130    288    287    289
+idx:     93 ID:    130 nodeIDs:     35     36    111     43    290    291
+idx:     94 ID:    131 nodeIDs:     50     51    112     58    292    293
+idx:     95 ID:    132 nodeIDs:      5      6    113     13    294    295
+idx:     96 ID:    133 nodeIDs:     66     95    118    163    145    296
+idx:     97 ID:    134 nodeIDs:     20     21    114     28    297    298
+idx:     98 ID:    135 nodeIDs:     21     70    114    267    193    297
+idx:     99 ID:    136 nodeIDs:     97     66    120    161    299    154
+idx:    100 ID:    137 nodeIDs:     36     69    111    250    133    290
+idx:    101 ID:    138 nodeIDs:     51     71    112    239    300    292
+idx:    102 ID:    139 nodeIDs:      6     72    113    249    301    294
+idx:    103 ID:    140 nodeIDs:    119     83    125    302    303    304
+idx:    104 ID:    141 nodeIDs:     99     73    114    149    305    192
+idx:    105 ID:    142 nodeIDs:     83     80    117    252    306    307
+idx:    106 ID:    143 nodeIDs:     78    100    117    234    191    308
+idx:    107 ID:    144 nodeIDs:      8     66    118    216    296    309
+idx:    108 ID:    145 nodeIDs:     72      7    118    248    310    144
+idx:    109 ID:    146 nodeIDs:     94     87    119    245    311    283
+idx:    110 ID:    147 nodeIDs:     84     83    119    262    302    312
+idx:    111 ID:    148 nodeIDs:     66      9    120    215    313    299
+idx:    112 ID:    149 nodeIDs:     10     73    120    236    155    314
+idx:    113 ID:    150 nodeIDs:      4     35    121     42    315    316
+idx:    114 ID:    151 nodeIDs:      3     20    122     27    317    318
+idx:    115 ID:    152 nodeIDs:      1     50    123     57    319    320
+idx:    116 ID:    153 nodeIDs:     41      1    123     49    320    321
+idx:    117 ID:    154 nodeIDs:      2      5    124     12    322    323
+idx:    118 ID:    155 nodeIDs:     56      2    124     64    323    324
+idx:    119 ID:    156 nodeIDs:     26      4    121     34    316    325
+idx:    120 ID:    157 nodeIDs:     11      3    122     19    318    326
+idx:    121 ID:    158 nodeIDs:     83    117    125    307    327    303
+idx:    122 ID:    159 nodeIDs:     93     94    115    246    181    328
+idx:    123 ID:    160 nodeIDs:    101     76    115    218    288    180
+idx:    124 ID:    161 nodeIDs:     91     92    116    278    329    182
+idx:    125 ID:    162 nodeIDs:    102    119    125    284    304    176
+idx:    126 ID:    163 nodeIDs:     80     78    117    240    308    306
+idx:    127 ID:    164 nodeIDs:    113     72    116    301    183    186
+idx:    128 ID:    165 nodeIDs:      7      8    118     15    309    310
+idx:    129 ID:    166 nodeIDs:     87     84    119    255    312    311
+idx:    130 ID:    167 nodeIDs:    117    104    125    190    179    327
+idx:    131 ID:    168 nodeIDs:      5    113    124    295    330    322
+idx:    132 ID:    169 nodeIDs:     35    111    121    291    331    315
+idx:    133 ID:    170 nodeIDs:     50    112    123    293    332    319
+idx:    134 ID:    171 nodeIDs:      9     10    120     17    314    313
+idx:    135 ID:    172 nodeIDs:     74     26    121    232    325    333
+idx:    136 ID:    173 nodeIDs:     73     11    122    235    326    334
+idx:    137 ID:    174 nodeIDs:     76     41    123    237    321    335
+idx:    138 ID:    175 nodeIDs:     75     56    124    238    324    336
+idx:    139 ID:    176 nodeIDs:     20    114    122    298    337    317
+idx:    140 ID:    177 nodeIDs:     92    126    129    338    339    340
+idx:    141 ID:    178 nodeIDs:     71    107    128    223    341    342
+idx:    142 ID:    179 nodeIDs:    126    110    127    343    344    345
+idx:    143 ID:    180 nodeIDs:     68    106    126    214    346    347
+idx:    144 ID:    181 nodeIDs:     68    126    127    347    345    348
+idx:    145 ID:    182 nodeIDs:    110     90    127    279    349    344
+idx:    146 ID:    183 nodeIDs:    107     68    127    226    348    350
+idx:    147 ID:    184 nodeIDs:     92    110    126    282    343    338
+idx:    148 ID:    185 nodeIDs:     90     93    128    274    351    352
+idx:    149 ID:    186 nodeIDs:    127     90    128    349    352    353
+idx:    150 ID:    187 nodeIDs:    107    127    128    350    353    341
+idx:    151 ID:    188 nodeIDs:    126    106    129    346    354    339
+idx:    152 ID:    189 nodeIDs:    106     75    129    230    189    354
+idx:    153 ID:    190 nodeIDs:    111     74    121    171    333    331
+idx:    154 ID:    191 nodeIDs:    113     75    124    185    336    330
+idx:    155 ID:    192 nodeIDs:    112     76    123    285    335    332
+idx:    156 ID:    193 nodeIDs:    128     93    130    351    355    356
+idx:    157 ID:    194 nodeIDs:     71    128    130    342    356    357
+idx:    158 ID:    195 nodeIDs:    114     73    122    305    334    337
+idx:    159 ID:    196 nodeIDs:    112     71    130    300    357    286
+idx:    160 ID:    197 nodeIDs:    116     92    129    329    340    188
+idx:    161 ID:    198 nodeIDs:     93    115    130    328    289    355</code></pre><p id="25c1cd7c-3133-801b-a39d-fbd78fa86f0b" class="">要素は，162要素である</p></details></li></ul><ul id="25c1cd7c-3133-804a-b922-d45fa5e84685" class="toggle"><li><details open=""><summary>実行結果（セルのpointIDの範囲）</summary><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-8084-badc-daf3f5dceb4a" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">rank=  0 [cell_start,   cell_end  ) = [    0,   79 )
+rank=  1 [cell_start,   cell_end  ) = [    0,   83 )</code></pre><p id="25c1cd7c-3133-80b7-889b-c77a217148f5" class="">rank=0 には79個，rank=1には83個のセル情報がある．</p></details></li></ul><ul id="25c1cd7c-3133-80b5-9269-d5f4e942b417" class="toggle"><li><details open=""><summary>実行結果（rank=0のセルpointIDとelementTag）</summary><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-8077-be60-c57a0e0cffb7" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">rank=  0, pID=      0, eID=     37
+rank=  0, pID=      1, eID=     38
+rank=  0, pID=      2, eID=     39
+rank=  0, pID=      3, eID=     41
+rank=  0, pID=      4, eID=     43
+rank=  0, pID=      5, eID=     44
+rank=  0, pID=      6, eID=     45
+rank=  0, pID=      7, eID=     46
+rank=  0, pID=      8, eID=     47
+rank=  0, pID=      9, eID=     48
+rank=  0, pID=     10, eID=     51
+rank=  0, pID=     11, eID=     52
+rank=  0, pID=     12, eID=     53
+rank=  0, pID=     13, eID=     54
+rank=  0, pID=     14, eID=     55
+rank=  0, pID=     15, eID=     56
+rank=  0, pID=     16, eID=     57
+rank=  0, pID=     17, eID=     58
+rank=  0, pID=     18, eID=     61
+rank=  0, pID=     19, eID=     64
+rank=  0, pID=     20, eID=     65
+rank=  0, pID=     21, eID=     66
+rank=  0, pID=     22, eID=     67
+rank=  0, pID=     23, eID=     68
+rank=  0, pID=     24, eID=     69
+rank=  0, pID=     25, eID=     70
+rank=  0, pID=     26, eID=     71
+rank=  0, pID=     27, eID=     72
+rank=  0, pID=     28, eID=     73
+rank=  0, pID=     29, eID=     74
+rank=  0, pID=     30, eID=     75
+rank=  0, pID=     31, eID=     76
+rank=  0, pID=     32, eID=     77
+rank=  0, pID=     33, eID=     82
+rank=  0, pID=     34, eID=     83
+rank=  0, pID=     35, eID=     85
+rank=  0, pID=     36, eID=     86
+rank=  0, pID=     37, eID=     88
+rank=  0, pID=     38, eID=     91
+rank=  0, pID=     39, eID=     92
+rank=  0, pID=     40, eID=     93
+rank=  0, pID=     41, eID=     95
+rank=  0, pID=     42, eID=     99
+rank=  0, pID=     43, eID=    104
+rank=  0, pID=     44, eID=    105
+rank=  0, pID=     45, eID=    107
+rank=  0, pID=     46, eID=    110
+rank=  0, pID=     47, eID=    111
+rank=  0, pID=     48, eID=    113
+rank=  0, pID=     49, eID=    115
+rank=  0, pID=     50, eID=    120
+rank=  0, pID=     51, eID=    127
+rank=  0, pID=     52, eID=    130
+rank=  0, pID=     53, eID=    134
+rank=  0, pID=     54, eID=    135
+rank=  0, pID=     55, eID=    137
+rank=  0, pID=     56, eID=    140
+rank=  0, pID=     57, eID=    141
+rank=  0, pID=     58, eID=    142
+rank=  0, pID=     59, eID=    143
+rank=  0, pID=     60, eID=    146
+rank=  0, pID=     61, eID=    147
+rank=  0, pID=     62, eID=    149
+rank=  0, pID=     63, eID=    150
+rank=  0, pID=     64, eID=    151
+rank=  0, pID=     65, eID=    156
+rank=  0, pID=     66, eID=    157
+rank=  0, pID=     67, eID=    158
+rank=  0, pID=     68, eID=    162
+rank=  0, pID=     69, eID=    163
+rank=  0, pID=     70, eID=    166
+rank=  0, pID=     71, eID=    167
+rank=  0, pID=     72, eID=    169
+rank=  0, pID=     73, eID=    171
+rank=  0, pID=     74, eID=    172
+rank=  0, pID=     75, eID=    173
+rank=  0, pID=     76, eID=    176
+rank=  0, pID=     77, eID=    190
+rank=  0, pID=     78, eID=    195</code></pre></details></li></ul><ul id="25c1cd7c-3133-8052-b6d2-da43d2f3c006" class="toggle"><li><details open=""><summary>実行結果（rank=1のセルpointIDとelementTag）</summary><script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7T+w19WtKQY/n+xzmw4hZhJ9tyYmcUS+4QqAlzhicE5LAfMQSF3iFTK9bQdTxXg==" crossorigin="anonymous" referrerPolicy="no-referrer"></script><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" integrity="sha512-tN7Ec6zAFaVSG3TpNAKtk4DOHNpSwKHxxrsiw4GHKESGPs5njn/0sMCUMl2svV4wo4BK/rCP7juYz+zx+l6oeQ==" crossorigin="anonymous" referrerPolicy="no-referrer"/><pre id="25c1cd7c-3133-803a-9c06-cc1312a89b68" class="code code-wrap"><code class="language-Bash" style="white-space:pre-wrap;word-break:break-all">rank=  1, pID=      0, eID=     40
+rank=  1, pID=      1, eID=     42
+rank=  1, pID=      2, eID=     49
+rank=  1, pID=      3, eID=     50
+rank=  1, pID=      4, eID=     59
+rank=  1, pID=      5, eID=     60
+rank=  1, pID=      6, eID=     62
+rank=  1, pID=      7, eID=     63
+rank=  1, pID=      8, eID=     78
+rank=  1, pID=      9, eID=     79
+rank=  1, pID=     10, eID=     80
+rank=  1, pID=     11, eID=     81
+rank=  1, pID=     12, eID=     84
+rank=  1, pID=     13, eID=     87
+rank=  1, pID=     14, eID=     89
+rank=  1, pID=     15, eID=     90
+rank=  1, pID=     16, eID=     94
+rank=  1, pID=     17, eID=     96
+rank=  1, pID=     18, eID=     97
+rank=  1, pID=     19, eID=     98
+rank=  1, pID=     20, eID=    100
+rank=  1, pID=     21, eID=    101
+rank=  1, pID=     22, eID=    102
+rank=  1, pID=     23, eID=    103
+rank=  1, pID=     24, eID=    106
+rank=  1, pID=     25, eID=    108
+rank=  1, pID=     26, eID=    109
+rank=  1, pID=     27, eID=    112
+rank=  1, pID=     28, eID=    114
+rank=  1, pID=     29, eID=    116
+rank=  1, pID=     30, eID=    117
+rank=  1, pID=     31, eID=    118
+rank=  1, pID=     32, eID=    119
+rank=  1, pID=     33, eID=    121
+rank=  1, pID=     34, eID=    122
+rank=  1, pID=     35, eID=    123
+rank=  1, pID=     36, eID=    124
+rank=  1, pID=     37, eID=    125
+rank=  1, pID=     38, eID=    126
+rank=  1, pID=     39, eID=    128
+rank=  1, pID=     40, eID=    129
+rank=  1, pID=     41, eID=    131
+rank=  1, pID=     42, eID=    132
+rank=  1, pID=     43, eID=    133
+rank=  1, pID=     44, eID=    136
+rank=  1, pID=     45, eID=    138
+rank=  1, pID=     46, eID=    139
+rank=  1, pID=     47, eID=    144
+rank=  1, pID=     48, eID=    145
+rank=  1, pID=     49, eID=    148
+rank=  1, pID=     50, eID=    152
+rank=  1, pID=     51, eID=    153
+rank=  1, pID=     52, eID=    154
+rank=  1, pID=     53, eID=    155
+rank=  1, pID=     54, eID=    159
+rank=  1, pID=     55, eID=    160
+rank=  1, pID=     56, eID=    161
+rank=  1, pID=     57, eID=    164
+rank=  1, pID=     58, eID=    165
+rank=  1, pID=     59, eID=    168
+rank=  1, pID=     60, eID=    170
+rank=  1, pID=     61, eID=    174
+rank=  1, pID=     62, eID=    175
+rank=  1, pID=     63, eID=    177
+rank=  1, pID=     64, eID=    178
+rank=  1, pID=     65, eID=    179
+rank=  1, pID=     66, eID=    180
+rank=  1, pID=     67, eID=    181
+rank=  1, pID=     68, eID=    182
+rank=  1, pID=     69, eID=    183
+rank=  1, pID=     70, eID=    184
+rank=  1, pID=     71, eID=    185
+rank=  1, pID=     72, eID=    186
+rank=  1, pID=     73, eID=    187
+rank=  1, pID=     74, eID=    188
+rank=  1, pID=     75, eID=    189
+rank=  1, pID=     76, eID=    191
+rank=  1, pID=     77, eID=    192
+rank=  1, pID=     78, eID=    193
+rank=  1, pID=     79, eID=    194
+rank=  1, pID=     80, eID=    196
+rank=  1, pID=     81, eID=    197
+rank=  1, pID=     82, eID=    198</code></pre></details></li></ul></div></details><p id="25c1cd7c-3133-80f3-95b6-e92e02053b83" class="">
+</p><p id="25c1cd7c-3133-80a3-b7aa-e87317883ad7" class=""><a href="../PETSc%E3%81%AB%E3%81%A4%E3%81%84%E3%81%A6%202541cd7c3133805eb1cac5603d381013.html">PETScについて</a> （メインページに戻る）</p><p id="25c1cd7c-3133-809b-8268-f9c542a1c8ea" class="">
+</p></div></article><span class="sans" style="font-size:14px;padding-top:2em"></span></body></html>
