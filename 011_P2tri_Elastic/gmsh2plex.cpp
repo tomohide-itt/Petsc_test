@@ -142,9 +142,9 @@ int main(int argc,char **argv)
       xye[i*2+1] = nodes[nidx].y;
     }
     //+++
-    if( 1 )
+    if( 0 )
     {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d\n", rank, c, eID );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d xye: \n", rank, c, eID );
       for( int i=0; i<6; i++ )
       {
         PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e%15.5e\n", xye[i*2+0], xye[i*2+1] );
@@ -161,31 +161,157 @@ int main(int argc,char **argv)
       if( gp == 2 ){ L1 = r[1]; L2 = r[1]; }
       if( gp == 3 ){ L1 = r[2]; L2 = r[3]; }
       if( gp == 4 ){ L1 = r[3]; L2 = r[2]; }
-      if( gp == 4 ){ L1 = r[3]; L2 = r[3]; }
+      if( gp == 5 ){ L1 = r[3]; L2 = r[3]; }
       L3 = 1.0 - L1 - L2;
-      // [dNdr] (6x2)
+      //
+      double wei;
+      if( gp < 3 ) wei = w[0];
+      else wei = w[1];
+      // [dN/dr] (6x2)
       PetscScalar dNdr[12];
       dNdr[0*2+0] = 2.0*L1-1.0;
-      dNdr[0*2+1] = 0.0;
-      dNdr[0*2+2] =-4.0*L3+1.0;
-      dNdr[0*2+3] =-4.0*L2;
-      dNdr[0*2+4] = 4.0*(L3-L1);
-      dNdr[0*2+5] = 4.0*L2;
       dNdr[1*2+0] = 0.0;
+      dNdr[2*2+0] =-4.0*L3+1.0;
+      dNdr[3*2+0] =-4.0*L2;
+      dNdr[4*2+0] = 4.0*(L3-L1);
+      dNdr[5*2+0] = 4.0*L2;
+      dNdr[0*2+1] = 0.0;
       dNdr[1*2+1] = 4.0*L2-1.0;
-      dNdr[1*2+2] =-4.0*L3+1.0;
-      dNdr[1*2+3] = 4.0*(L3-L2);
-      dNdr[1*2+4] =-4.0*L1;
-      dNdr[1*2+5] = 4.0*L1;
+      dNdr[2*2+1] =-4.0*L3+1.0;
+      dNdr[3*2+1] = 4.0*(L3-L2);
+      dNdr[4*2+1] =-4.0*L1;
+      dNdr[5*2+1] = 4.0*L1;
+      //++++
+      if( 0 )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d gp=%5d dNdr: \n", rank, c, eID, gp );
+        for( int i=0; i<6; i++ )
+        {
+          for( int j=0; j<2; j++ )
+          {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", dNdr[i*2+j] );
+          }
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+        }
+      }
+      //----
+      // [J] (2x2)
+      PetscScalar J[4];
+      for( int i=0; i<2; i++ )
+      {
+        for( int j=0; j<2; j++ )
+        {
+          J[i*2+j] = 0.0;
+          for( int k=0; k<6; k++ )
+          {
+            J[i*2+j] += dNdr[k*2+i]*xye[k*2+j];
+          }
+        }
+      }
+      // detJ
+      double detJ = J[0*2+0]*J[1*2+1] - J[0*2+1]*J[1*2+0];
+      // [J]-T (2x2)
+      PetscScalar J_I_T[4];
+      J_I_T[0*2+0] = J[1*2+1]/detJ;
+      J_I_T[1*2+1] = J[0*2+0]/detJ;
+      J_I_T[0*2+1] =-J[1*2+0]/detJ;
+      J_I_T[1*2+0] =-J[0*2+1]/detJ;
+      // [dN/dx] (6x2)
+      PetscScalar derivN[12];
+      for( int i=0; i<6; i++ )
+      {
+        for( int j=0; j<2; j++ )
+        {
+          derivN[i*2+j] = 0.0;
+          for( int k=0; k<2; k++ )
+          {
+            derivN[i*2+j] += dNdr[i*2+k]*J_I_T[k*2+j];
+          }
+        }
+      }
+      // fac
+      double fac = 0.5*wei*detJ;
+      // B (4x12)
+      PetscScalar B[48];
+      for( int i=0; i<48; i++ ) B[i] = 0.0;
+      for( int i=0; i<6; i++ )
+      {
+        B[0*12 + (2*i+0)] = -derivN[i*2+0];
+        B[1*12 + (2*i+1)] = -derivN[i*2+1];
+        B[3*12 + (2*i+0)] = -derivN[i*2+1]*0.5;
+        B[3*12 + (2*i+1)] = -derivN[i*2+0]*0.5;
+      }
+      //++++
+      if( 0 )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d gp=%5d B: \n", rank, c, eID, gp );
+        for( int i=0; i<4; i++ )
+        {
+          for( int j=0; j<12; j++ )
+          {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", B[i*12+j] );
+          }
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+        }
+      }
+      //----
+      // BVOL (4x12)
+      PetscScalar BVOL[48];
+      for( int i=0; i<48; i++ ) BVOL[i] = B[i]*fac;
+      // [B]T[D] (12x4)
+      PetscScalar BTD[48];
+      for( int i=0; i<12; i++ )
+      {
+        for( int j=0; j<4; j++ )
+        {
+          BTD[i*4+j] = 0.0;
+          for( int k=0; k<4; k++ )
+          {
+            BTD[i*4+j] += B[k*12+i]*D[k*4+j];
+          }
+        }
+      }
+      // [B]T[D][B] (12x12)
+      for( int i=0; i<12; i++ )
+      {
+        for( int j=0; j<12; j++ )
+        {
+          for( int k=0; k<4; k++ )
+          {
+            Ke[i*12+j] += BTD[i*4+k]*BVOL[k*12+j];
+          }
+        }
+      }
     }
-
+    //+++
+    if( 0 )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d Ke: \n", rank, c, eID );
+      for( int i=0; i<12; i++ )
+      {
+        for( int j=0; j<12; j++ )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", Ke[i*12+j] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+      }
+    }
+    //---
     
     // 要素既知ベクトルFeの計算
     PetscScalar Fe[12];
     for( int i=0; i<12; i++ ) Fe[i] = 0.0;
 
+    // アセンブリ
+    //MatSetValuesLocal( A, nidx, idx, nidx, idx, Ke, ADD_VALUES );
+    //VecSetValuesLocal( b, nidx, idx, Fe, ADD_VALUES );
     PetscCall( DMPlexRestoreClosureIndices( dm, loc_section, glob_section, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
   }
+
+  //PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  //PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+  //PetscCall( VecAssemblyBegin( b ) );
+  //PetscCall( VecAssemblyEnd( b ) );
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   

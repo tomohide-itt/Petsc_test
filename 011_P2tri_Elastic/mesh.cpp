@@ -101,6 +101,12 @@ void read_msh_elems( const std::string& mesh_path, elem_vec &elems )
       elm.ID = elem_tag;
       elm.type = elem_type;
       elm.nodeIDs = nodeIDs;
+      if( elem_type == 9 )
+      {
+        elm.nodeIDs[3] = nodeIDs[4];
+        elm.nodeIDs[4] = nodeIDs[5];
+        elm.nodeIDs[5] = nodeIDs[3];
+      }
       elems.push_back( elm );
     }
   }
