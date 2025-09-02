@@ -339,6 +339,15 @@ int main(int argc,char **argv)
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
 
+  //=== permutation c to x
+  std::vector<PetscInt> map_nic2ni;
+  PetscCall( get_map_nic2ni( rank, dm, map_nic2ni ) );
+  for( int i=0; i<map_nic2ni.size(); i++ )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d map_nic2ni[%5d]=%5d\n", rank, i, map_nic2ni[i] );
+  }
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+
   //=== Dirichlet境界条件 ==============================================================================
   {
     //++++
@@ -346,10 +355,12 @@ int main(int argc,char **argv)
     Vec coords_loc = NULL;
     const PetscScalar *coords_loc_arr = NULL;
     PetscSection csec = NULL;
+    PetscSection sec = NULL;
     PetscCall( DMGetCoordinateDM( dm, &cdm ) );
     PetscCall( DMGetCoordinatesLocal( dm, &coords_loc ) );
     PetscCall( VecGetArrayRead( coords_loc, &coords_loc_arr ) );
     PetscCall( DMGetCoordinateSection( dm, &csec ) );
+    PetscCall( DMGetLocalSection( dm, &sec ) );
     PetscInt depth=-1, pstart=-1, pend=-1, cdof=-1, coff=-1;
     //cdmの有効ポイント範囲
     PetscCall( DMPlexGetChart( cdm, &pstart, &pend ) );
@@ -416,6 +427,17 @@ int main(int argc,char **argv)
           PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d xc[%5d]=%15.5e\n", rank, j, xc[j] );
         }
         //---
+        PetscInt cdof_c2 = 0;
+        PetscScalar *xc2 = NULL; //borrowing pointer
+        PetscCall( DMPlexVecGetClosure(dm, sec, coords_loc, c, &cdof_c2, &xc2 ) );
+        //+++
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d xc2:\n", rank );
+        for( int j=0; j<12; j++ )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d xc2[%5d]=%15.5e\n", rank, j, xc2[j] );
+        }
+        //---
+        
         // cdof_c は 12を想定
         if( cdof_c != 6*dim )
         {
@@ -490,6 +512,7 @@ int main(int argc,char **argv)
 
         // 後片付け
         PetscCall(DMPlexVecRestoreClosure(cdm, csec, coords_loc, c, &cdof_c, &xc));
+        PetscCall(DMPlexVecRestoreClosure(dm, sec, coords_loc, c, &cdof_c2, &xc2));
       }
 
       PetscCall( ISRestoreIndices( faceIS, &faces ) );

@@ -23,6 +23,8 @@ PetscErrorCode get_label_num( const int rank, const DM& dm, const std::string& l
 PetscErrorCode get_elemID_map( const int rank, const DM& dm, const PetscInt dim, const node_vec& nodes, const elem_vec& elems,
     std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug=false );
 
+PetscErrorCode get_map_nic2ni( const int rank, const DM& dm, std::vector<PetscInt>& map );
+
 
 #endif
 

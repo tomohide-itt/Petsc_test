@@ -366,3 +366,64 @@ PetscErrorCode get_elemID_map( const int rank, const DM& dm, const PetscInt dim,
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscFunctionReturn( PETSC_SUCCESS );
 }
+
+// 節点の並び順について，csec/cdm 順から sec/dm 順に変換するマップを計算する
+PetscErrorCode get_map_nic2ni( const int rank, const DM& dm, std::vector<PetscInt>& map )
+{
+  DM cdm = NULL;  // 座標用DM
+  PetscSection sec = NULL; // dmのセクション
+  PetscSection csec = NULL; // cdmのセクション
+  PetscCall( DMGetCoordinateDM( dm, &cdm ) );
+  PetscCall( DMGetLocalSection( dm, &sec ) );
+  PetscCall( DMGetCoordinateSection( dm, &csec ) );
+
+  PetscInt depth = -1;
+  PetscCall( DMPlexGetDepth( dm, &depth ) );
+
+  //+++
+  PetscPrintf( PETSC_COMM_WORLD, "depth = %d\n", depth );
+  //---
+
+  // 各セクションのクロージャ置換を取得
+  IS is_perm_nic = NULL;
+  IS is_perm_ni  = NULL;
+  PetscCall( PetscSectionGetClosurePermutation( csec, (PetscObject)cdm, depth, 0, &is_perm_nic ) );
+  PetscCall( PetscSectionGetClosurePermutation( sec,  (PetscObject)dm,  depth, 0, &is_perm_ni  ) );
+  const PetscInt *perm_nic = NULL;
+  const PetscInt *perm_ni  = NULL;
+  PetscInt num_nic = 0;
+  PetscInt num_ni  = 0;
+  if( is_perm_nic )
+  {
+    PetscCall( ISGetLocalSize( is_perm_nic, &num_nic ) );
+    PetscCall( ISGetIndices( is_perm_nic, &perm_nic ) );
+  }
+  if( is_perm_ni )
+  {
+    PetscCall( ISGetLocalSize( is_perm_ni, &num_ni ) );
+    PetscCall( ISGetIndices( is_perm_ni, &perm_ni ) );
+  }
+
+  //+++
+  PetscPrintf( PETSC_COMM_WORLD, "is_perm_nic = %p\n", is_perm_nic );
+  PetscPrintf( PETSC_COMM_WORLD, "is_perm_ni  = %p\n", is_perm_ni  );
+  //---
+
+  std::vector<PetscInt> inv_perm_nic( num_nic, -1 );
+  std::vector<PetscInt> map_nic2ni( num_nic, -1 );
+  for( PetscInt k=0; k<num_nic; k++ ) inv_perm_nic[ perm_nic[k] ] = k;
+  for( PetscInt i=0; i<num_nic; i++ ) map_nic2ni[i] = inv_perm_nic[ perm_ni[i] ];
+
+  if( is_perm_nic )
+  {
+    PetscCall( ISRestoreIndices( is_perm_nic, &perm_nic ) );
+    PetscCall( ISDestroy( &is_perm_nic ) );
+  }
+  if( is_perm_ni )
+  {
+    PetscCall( ISRestoreIndices( is_perm_ni, &perm_ni ) );
+    PetscCall( ISDestroy( &is_perm_ni ) );
+  }
+
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
