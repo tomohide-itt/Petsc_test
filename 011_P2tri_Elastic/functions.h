@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <petscdmplex.h>
 #include <petscksp.h>
 #include "mesh.h"
@@ -24,6 +25,18 @@ PetscErrorCode get_elemID_map( const int rank, const DM& dm, const PetscInt dim,
     std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug=false );
 
 PetscErrorCode get_map_nic2ni( const int rank, const DM& dm, std::vector<PetscInt>& map );
+
+PetscErrorCode show_coords_each_cell( const int rank, const DM& dm );
+PetscErrorCode show_coords_boundary( const int rank, const DM& dm, const PetscInt f );
+
+PetscErrorCode set_Dirichlet_zero( const int rank, const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
+PetscErrorCode set_nodal_force( const int rank, const DM& dm, const PetscFE& fe,
+  const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b );
+PetscErrorCode get_coords_face( const int rank, const DM& dm, const PetscInt p, std::vector<double>& xy );
+PetscErrorCode get_coords_vertex( const int rank, const DM& dm, const PetscInt p, std::vector<double>& xy );
+PetscErrorCode show_displacement( const int rank, const DM& dm, const Vec& sol );
+
+PetscErrorCode SetClosurePermutation_P2Tri( const int rank, DM dm, PetscSection sec, PetscInt cellDepth);
 
 
 #endif
