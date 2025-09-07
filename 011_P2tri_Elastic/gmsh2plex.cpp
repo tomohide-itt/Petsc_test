@@ -1,3 +1,5 @@
+// mpiexec -n 2 ./gmsh2plex -mesh test2D_2.msh -vtk mesh.vtk -ksp_monitor
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -127,6 +129,18 @@ int main(int argc,char **argv)
   D[ 8] = lamb;           D[ 9] = lamb;           D[10] = lamb + 2.0*mu;  D[11] = 0.0;
   D[12] = 0.0;            D[13] = 0.0;            D[14] = 0.0;            D[15] = mu;
 
+  //=== 
+  {
+    PetscSection sec;
+    PetscCall( DMGetLocalSection( dm, &sec ) );
+    PetscInt idx[12], pt[12], comp[12];
+    PetscInt ncelldof = 0;
+    for( PetscInt c=cell_start; c<cell_end; c++ )
+    {
+      PetscCall( build_cell_dof_map( rank, dm, sec, c, ncelldof, idx, pt, comp ) );
+    }
+  }
+
   //=== 要素でループ ==============================================================================
   PetscSection loc_section, glob_section;
   PetscCall( DMGetLocalSection( dm, &loc_section ) );
@@ -139,6 +153,17 @@ int main(int argc,char **argv)
     PetscInt* idx;
     PetscInt nidx;
     PetscCall( DMPlexGetClosureIndices( dm, loc_section, glob_section, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
+
+    //+++
+    if( 1 )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d idx: \n", rank, c );
+      for( int i=0; i<nidx; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "idx[%5d]=%5d\n", i, idx[i] );
+      }
+    }
+    //---
 
     // 要素剛性マトリクスKeの計算
     PetscScalar Ke[144];
@@ -253,7 +278,7 @@ int main(int argc,char **argv)
         }
       }
       // fac
-      double fac = 0.5*wei*detJ;
+      double fac = 0.5*wei*fabs(detJ);
       // B (4x12)
       PetscScalar B[48];
       for( int i=0; i<48; i++ ) B[i] = 0.0;
@@ -290,7 +315,8 @@ int main(int argc,char **argv)
           BTD[i*4+j] = 0.0;
           for( int k=0; k<4; k++ )
           {
-            BTD[i*4+j] += B[k*12+i]*D[k*4+j];
+            if( k != 3 ) BTD[i*4+j] += B[k*12+i]*D[k*4+j];
+            else         BTD[i*4+j] += 2.0*B[k*12+i]*D[k*4+j];
           }
         }
       }
@@ -301,13 +327,14 @@ int main(int argc,char **argv)
         {
           for( int k=0; k<4; k++ )
           {
-            Ke[i*12+j] += BTD[i*4+k]*BVOL[k*12+j];
+            if( k != 3 ) Ke[i*12+j] += BTD[i*4+k]*BVOL[k*12+j];
+            else         Ke[i*12+j] += 2.0*BTD[i*4+k]*BVOL[k*12+j];
           }
         }
       }
     }
     //+++
-    if( 0 )
+    if( 1 )
     {
       PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d pID=%5d eID=%5d Ke: \n", rank, c, eID );
       for( int i=0; i<12; i++ )
@@ -320,7 +347,38 @@ int main(int argc,char **argv)
       }
     }
     //---
-    
+
+    // 並べ替え（とりあえずむりやり）
+    PetscScalar Ke_tmp[144];
+    for( int i=0; i<144; i++ ) Ke_tmp[i] = Ke[i];
+    PetscInt pmt[6];
+    pmt[0] = 5;
+    pmt[1] = 3;
+    pmt[2] = 4;
+    pmt[3] = 0;
+    pmt[4] = 1;
+    pmt[5] = 2;
+
+    for( int i=0; i<6; i++ )
+    {
+      int io = pmt[i];
+      for( int k=0; k<2; k++ )
+      {
+        int ik = i*2+k;
+        int iok = io*2+k;
+        for( int j=0; j<6; j++ )
+        {
+          int jo = pmt[j];
+          for( int l=0; l<2; l++ )
+          {
+            int jl = j*2+l;
+            int jol = jo*2+l;
+            Ke[ik*12+jl] = Ke_tmp[iok*12+jol];
+          }
+        }
+      }
+    }
+
     // 要素既知ベクトルFeの計算
     PetscScalar Fe[12];
     for( int i=0; i<12; i++ ) Fe[i] = 0.0;
@@ -338,11 +396,11 @@ int main(int argc,char **argv)
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
 
+  //=== 節点力 ==============================================================================
+  PetscCall( set_nodal_force( rank, dm, fe, 2, -10, 1, b ) );
+
   //=== Dirichlet境界条件 ==============================================================================
   PetscCall( set_Dirichlet_zero( rank, dm, 4, A, b ) );
-
-  //=== 節点力 ==============================================================================
-  PetscCall( set_nodal_force( rank, dm, fe, 2, -10.0, 1, b ) );
 
   //=== ソルバーで解く ==============================================================================
   KSP ksp;

@@ -36,7 +36,8 @@ PetscErrorCode get_coords_face( const int rank, const DM& dm, const PetscInt p, 
 PetscErrorCode get_coords_vertex( const int rank, const DM& dm, const PetscInt p, std::vector<double>& xy );
 PetscErrorCode show_displacement( const int rank, const DM& dm, const Vec& sol );
 
-PetscErrorCode SetClosurePermutation_P2Tri( const int rank, DM dm, PetscSection sec, PetscInt cellDepth);
+PetscErrorCode build_cell_dof_map( const int rank, const DM& dm, const PetscSection& sec, const PetscInt c,
+  PetscInt& ncelldof, PetscInt* idx, PetscInt* pt, PetscInt* comp );
 
 
 #endif
