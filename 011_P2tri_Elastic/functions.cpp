@@ -723,13 +723,13 @@ PetscErrorCode set_nodal_force( const int rank, const DM& dm, const PetscFE& fe,
     PetscCall( ISDestroy(&faceIS) );
   }
 
-    // ローカル -> グローバルへ集約
-    PetscCall( VecAssemblyBegin(bloc) );
-    PetscCall( VecAssemblyEnd(bloc) );
-    PetscCall( DMLocalToGlobalBegin( dm, bloc, ADD_VALUES, b ) );
-    PetscCall( DMLocalToGlobalEnd( dm, bloc, ADD_VALUES, b ) );
+  // ローカル -> グローバルへ集約
+  PetscCall( VecAssemblyBegin(bloc) );
+  PetscCall( VecAssemblyEnd(bloc) );
+  PetscCall( DMLocalToGlobalBegin( dm, bloc, ADD_VALUES, b ) );
+  PetscCall( DMLocalToGlobalEnd( dm, bloc, ADD_VALUES, b ) );
 
-    PetscCall( VecDestroy( &bloc ) );
+  PetscCall( VecDestroy( &bloc ) );
 
   // check
   PetscScalar sum=0;

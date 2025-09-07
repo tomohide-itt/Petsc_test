@@ -130,6 +130,7 @@ int main(int argc,char **argv)
   D[12] = 0.0;            D[13] = 0.0;            D[14] = 0.0;            D[15] = mu;
 
   //=== 
+  /*
   {
     PetscSection sec;
     PetscCall( DMGetLocalSection( dm, &sec ) );
@@ -140,6 +141,7 @@ int main(int argc,char **argv)
       PetscCall( build_cell_dof_map( rank, dm, sec, c, ncelldof, idx, pt, comp ) );
     }
   }
+  */
 
   //=== 要素でループ ==============================================================================
   PetscSection loc_section, glob_section;
