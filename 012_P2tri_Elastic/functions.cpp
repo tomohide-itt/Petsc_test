@@ -39,149 +39,6 @@ PetscErrorCode partition_mesh( DM &dm, DM &dm_dist )
 }
 
 // ----------------------------------------------------------------------------
-// DMPlexのセルpointIDとgmshのelementTagの紐づけ
-PetscErrorCode get_elemID_map( const DM& dm, const node_vec& nodes, const elem_vec& elems,
-  std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug )
-{
-  // rankの取得
-  PetscMPIInt rank;
-  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
-
-  // 次元の取得
-  PetscInt dim;
-  PetscCall( DMGetDimension( dm, &dim ) );
-
-  // ローカルで座標の配列を取得
-  Vec crds_loc = NULL;
-  PetscCall( DMGetCoordinatesLocal( dm, &crds_loc ) );
-  const PetscScalar *crds_loc_arr;
-  if( crds_loc ) PetscCall( VecGetArrayRead( crds_loc, &crds_loc_arr ) );
-
-  // 座標セクションとセルのポイント番号の範囲を取得
-  PetscSection csec = NULL;
-  PetscInt c_start=0, c_end=0;
-  PetscCall( DMGetCoordinateSection( dm, &csec ) );
-  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
-
-  std::vector<bool> visited_elem( elems.size(), false );
-  for( PetscInt c=c_start; c<c_end; c++ )
-  {
-    // セルごとに節点の座標値を取得
-    PetscInt dof, off;
-    PetscCall( PetscSectionGetDof(    csec, c, &dof ) );
-    PetscCall( PetscSectionGetOffset( csec, c, &off ) );
-    PetscInt num_node = dof/dim;
-    std::vector<std::vector<double>> xyz( num_node, std::vector<double>( dim, 0.0 ) );
-    for( int n=0; n<num_node; n++ )
-    {
-      for( int i=0; i<dim; i++ )
-      {
-        xyz[n][i] = (double)PetscRealPart( crds_loc_arr[ off + n*dim + i ] );
-      }
-    }
-    if( debug )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d %s[%d] : coordinates\n", rank, __FUNCTION__, __LINE__ );
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d num_node=%5d\n", rank, c, num_node );
-      for( int n=0; n<num_node; n++ )
-      {
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d", rank );
-        for( int i=0; i<dim; i++ )
-        {
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", xyz[n][i] );
-        }
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
-      }
-    }
-
-    //---
-    // elemsと突き合わせて，6点の座標値が一致していれば，そのelemsのIDとpのマップを登録する
-    double tol = 1.0e-8;
-
-    for( const elem &e : elems )
-    {
-      if( e.nodeIDs.size() != num_node ) continue;
-      int eidx = elems.idx_of_id( e.ID );
-      if( visited_elem[eidx] ) continue;
-      
-      if( 0 )
-      {
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "check elem ID=%d\n", e.ID );
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "eidx=%d\n", eidx );
-      }
-      
-      std::vector<bool> visited_node( num_node, false );
-      bool identical = true;
-      for( int nid=0; nid<num_node; nid++ )
-      {
-        const node& nd = nodes.id_of(e.nodeIDs[nid]);
-        
-        if( 0 )
-        {
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  e.nodeIDs[%5d]=%d\n", nid, e.nodeIDs[nid] );
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  node ID=%d\n", nd.ID );
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  " );
-          if( dim >= 1 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.x );
-          if( dim >= 2 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.y );
-          if( dim >= 3 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.z );
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
-        }
-
-        bool find = false;
-        for( int n=0; n<num_node; n++ )
-        {
-          if( visited_node[n] ) continue;
-          bool same = true;
-          if( dim == 2 )
-          {
-            same = same && close2( nd.x, xyz[n][0], tol ) && close2( nd.y, xyz[n][1], tol );
-          }
-          if( same )
-          {
-            visited_node[n] = true;
-            find = true;
-            break;
-          }
-        }
-        
-        if( 0 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  find=%d\n", find );
-        
-        identical = identical && find;
-        if( !find ) break;
-      }
-      if( identical )
-      {
-        visited_elem[eidx] = true;
-        eID2pID[e.ID] = c;
-        pID2eID[c] = e.ID;
-        if( 0 )
-        {
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "elems.ID = %d is identical with %d\n", e.ID, c );
-          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-        }
-        break;
-      }
-    }
-  }
-
-  if (crds_loc)  PetscCall( VecRestoreArrayRead( crds_loc,  &crds_loc_arr ) );
-  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
-
-  if( debug )
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d %s[%d] : pID2eID\n", rank, __FUNCTION__, __LINE__ );
-    for( const auto& [pID, eID] : pID2eID )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, pID=%7d, eID=%7d\n", rank, pID, eID );
-    }
-  }
-  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
-  PetscFunctionReturn( PETSC_SUCCESS );
-}
-
-// ----------------------------------------------------------------------------
 // FE空間を作成する
 PetscErrorCode create_FE( const DM& dm, PetscFE& fe )
 {
@@ -220,12 +77,227 @@ PetscErrorCode cal_D_matrix( const double E, const double nu, PetscScalar* D )
 
 // ----------------------------------------------------------------------------
 // Kマトリクスを計算してマージする
-PetscErrorCode merge_Kuu_matrix( const DM& dm )
+PetscErrorCode merge_Kuu_matrix( const DM& dm, const PetscScalar* D, Mat& A, const bool debug )
 {
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
   // ローカルセクション，グローバルセクションを取得
   PetscSection loc_sec, glb_sec;
-  
+  PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
 
+  // セルの範囲を取得
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    // 局所自由度インデックス（プロセス内のローカルVecの位置）を取得
+    PetscInt* idx = NULL;
+    PetscInt nidx = 0;
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
+
+    //+++
+    if( debug )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d : Local DOF indices\n", rank, c );
+      for( int i=0; i<nidx; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "idx[%5d]=%5d\n", i, idx[i] );
+      }
+    }
+    //---
+
+    // Transitive Closure 
+    PetscInt npts = 0;
+    PetscInt* pts = NULL;
+    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+
+    // クロージャ順 -> Ke計算用順に交換するための対応関係を取得
+    std::vector<int> permt;
+    PetscCall( get_permutation( permt ) );
+
+    // Ke計算用の順序で座標マトリクスを得る
+    PetscScalar xye[12]; // Ke計算用の順序の座標マトリクス (6x2) 
+    for( PetscInt k=0; k<npts; k++ )
+    {
+      const PetscInt p = pts[2*k];
+      PetscInt depth;
+      PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
+      if( depth == 2 ) continue;
+
+      std::vector<double> xy( dim );
+      PetscCall( get_coords( dm, p, xy ) );
+      
+      int ke = permt[ k - 1 ];
+      for( int i=0; i<dim; i++ ) xye[ ke*dim + i ] = xy[i];
+    }
+    //+++
+    if( debug )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d : coordinates in Ke order\n", rank, c );
+      for( int i=0; i<6; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%5d: %15.5e%15.5e\n", i, xye[i*dim+0], xye[i*dim+1] );
+      }
+    }
+    //---
+
+    // 積分点位置
+    PetscScalar r[4];
+    r[0] = 0.816847572980459; r[1] = 0.091576213509771;
+    r[2] = 0.108103018168070; r[3] = 0.445948490915965;
+
+    // 積分点重み
+    PetscScalar w[2];
+    w[0] = 0.109951743655322; w[1] = 0.223381589678011;
+
+    PetscScalar Ke[144];
+    for( int i=0; i<144; i++ ) Ke[i]=0.0;
+
+    PetscInt num_gp = 6; // 積分点数
+    for( PetscInt gp=0; gp<num_gp; gp++ )
+    {
+      double L1, L2, L3;
+      if( gp == 0 ){ L1 = r[0]; L2 = r[1]; }
+      if( gp == 1 ){ L1 = r[1]; L2 = r[0]; }
+      if( gp == 2 ){ L1 = r[1]; L2 = r[1]; }
+      if( gp == 3 ){ L1 = r[2]; L2 = r[3]; }
+      if( gp == 4 ){ L1 = r[3]; L2 = r[2]; }
+      if( gp == 5 ){ L1 = r[3]; L2 = r[3]; }
+      L3 = 1.0 - L1 - L2;
+
+      double wei;
+      if( gp < 3 ) wei = w[0];
+      else wei = w[1];
+      // [dN/dr] (6x2)
+      PetscScalar dNdr[12];
+      dNdr[0*2+0] = 4.0*L1-1.0;
+      dNdr[1*2+0] = 0.0;
+      dNdr[2*2+0] =-4.0*L3+1.0;
+      dNdr[3*2+0] =-4.0*L2;
+      dNdr[4*2+0] = 4.0*(L3-L1);
+      dNdr[5*2+0] = 4.0*L2;
+      dNdr[0*2+1] = 0.0;
+      dNdr[1*2+1] = 4.0*L2-1.0;
+      dNdr[2*2+1] =-4.0*L3+1.0;
+      dNdr[3*2+1] = 4.0*(L3-L2);
+      dNdr[4*2+1] =-4.0*L1;
+      dNdr[5*2+1] = 4.0*L1;
+
+      // [J] (2x2)
+      PetscScalar J[4];
+      for( int i=0; i<2; i++ )
+      {
+        for( int j=0; j<2; j++ )
+        {
+          J[i*2+j] = 0.0;
+          for( int k=0; k<6; k++ )
+          {
+            J[i*2+j] += dNdr[k*2+i]*xye[k*2+j];
+          }
+        }
+      }
+      // detJ
+      double detJ = J[0*2+0]*J[1*2+1] - J[0*2+1]*J[1*2+0];
+      // [J]-T (2x2)
+      PetscScalar J_I_T[4];
+      J_I_T[0*2+0] = J[1*2+1]/detJ;
+      J_I_T[1*2+1] = J[0*2+0]/detJ;
+      J_I_T[0*2+1] =-J[1*2+0]/detJ;
+      J_I_T[1*2+0] =-J[0*2+1]/detJ;
+      // [dN/dx] (6x2)
+      PetscScalar derivN[12];
+      for( int i=0; i<6; i++ )
+      {
+        for( int j=0; j<2; j++ )
+        {
+          derivN[i*2+j] = 0.0;
+          for( int k=0; k<2; k++ )
+          {
+            derivN[i*2+j] += dNdr[i*2+k]*J_I_T[k*2+j];
+          }
+        }
+      }
+      double fac = 0.5*wei*fabs(detJ);
+      // B (4x12)
+      PetscScalar B[48];
+      for( int i=0; i<48; i++ ) B[i] = 0.0;
+      for( int i=0; i<6; i++ )
+      {
+        B[0*12 + (2*i+0)] = -derivN[i*2+0];
+        B[1*12 + (2*i+1)] = -derivN[i*2+1];
+        B[3*12 + (2*i+0)] = -derivN[i*2+1]*0.5;
+        B[3*12 + (2*i+1)] = -derivN[i*2+0]*0.5;
+      }
+      // BVOL (4x12)
+      PetscScalar BVOL[48];
+      for( int i=0; i<48; i++ ) BVOL[i] = B[i]*fac;
+      // [B]T[D] (12x4)
+      PetscScalar BTD[48];
+      for( int i=0; i<12; i++ )
+      {
+        for( int j=0; j<4; j++ )
+        {
+          BTD[i*4+j] = 0.0;
+          for( int k=0; k<4; k++ )
+          {
+            if( k != 3 ) BTD[i*4+j] += B[k*12+i]*D[k*4+j];
+            else         BTD[i*4+j] += 2.0*B[k*12+i]*D[k*4+j];
+          }
+        }
+      }
+      // [B]T[D][B] (12x12)
+      for( int i=0; i<12; i++ )
+      {
+        for( int j=0; j<12; j++ )
+        {
+          for( int k=0; k<4; k++ )
+          {
+            if( k != 3 ) Ke[i*12+j] += BTD[i*4+k]*BVOL[k*12+j];
+            else         Ke[i*12+j] += 2.0*BTD[i*4+k]*BVOL[k*12+j];
+          }
+        }
+      }
+    } // for( gp )
+
+    //+++
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d : Ke\n", rank, c );
+    for( int i=0; i<12; i++ )
+    {
+      for( int j=0; j<12; j++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", Ke[i*12+j] );
+      }
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    //---
+
+    // Keの並べ替え
+    PetscCall( permutate_Kuue_matrix( 6, dim, Ke ) );
+
+    // アセンブリ
+    PetscCall( DMPlexMatSetClosure( dm, loc_sec, glb_sec, A, c, Ke, ADD_VALUES ) );
+    
+    // 局所自由度インデックスを返す
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
+    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+
+  } // for( c )
+
+  PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
@@ -430,8 +502,78 @@ PetscErrorCode set_nodal_force( const int rank, const DM& dm, const PetscFE& fe,
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
+// 変位の出力
+PetscErrorCode show_displacement( const int rank, const DM& dm, const Vec& sol )
+{
+  // セクション取得など
+  PetscSection sec;
+  Vec coords_loc = NULL;
+  PetscInt dim = 0;
+  PetscCall( DMGetCoordinatesLocal( dm, &coords_loc ) );
+  PetscCall( DMGetLocalSection( dm, &sec ) );
+  PetscCall( DMGetCoordinateDim( dm, &dim ) );
+
+  // グローバル解をローカルに
+  Vec sol_loc;
+  PetscCall( DMGetLocalVector( dm, &sol_loc ) );
+  PetscCall( DMGlobalToLocalBegin( dm, sol, INSERT_VALUES, sol_loc ) );
+  PetscCall( DMGlobalToLocalEnd  ( dm, sol, INSERT_VALUES, sol_loc ) );
+
+  // 配列ポインタを取得
+  const PetscScalar* sol_arr = NULL;
+  PetscCall( VecGetArrayRead( sol_loc, &sol_arr ) );
+
+  // 範囲（セル）
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  // セルでループ
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt npts = 0;
+    PetscInt* pts = NULL;
+    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+
+    // このセルのポイントでループ
+    for( PetscInt k=0; k<npts; k++ )
+    {
+      const PetscInt p = pts[2*k];
+      PetscInt depth;
+      PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
+      if( depth == 2 ) continue; // pがセルなら飛ばす
+
+      PetscInt dof = 0;
+      PetscInt off = 0;
+      PetscCall( PetscSectionGetDof( sec, p, &dof ) );
+      PetscCall( PetscSectionGetOffset( sec, p, &off ) );
+
+      // 解ベクトル
+      const PetscScalar ux  = sol_arr[off + 0];
+      const PetscScalar uy  = sol_arr[off + 1];
+
+      // 座標
+      std::vector<double> xy( dim, 0.0 );
+      PetscCall( get_coords( dm, p, xy ) );
+
+      // 出力
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c= %5d k=%5d p=%5d depth=%5d dof=%5d off=%5d (x y)=%15.5e%15.5e (u v)=%15.5e%15.5e\n",
+          rank, c, k, p, depth, dof, off, xy[0], xy[1], ux, uy );
+    }
+    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+  }
+
+  // 後片付け
+  PetscCall( VecRestoreArrayRead( sol_loc, &sol_arr ) );
+  PetscCall( DMRestoreLocalVector( dm,     &sol_loc ) );
+
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
 // pointID が depth=0 (頂点)のとき，座標を計算する 
-PetscErrorCode get_coords_vertex( const int rank, const DM& dm, const PetscInt p, std::vector<double>& xy )
+PetscErrorCode get_coords_vertex( const DM& dm, const PetscInt p, std::vector<double>& xy )
 {
   DM cdm = NULL; //座標用DM
   Vec coords_loc = NULL;
@@ -545,8 +687,9 @@ PetscErrorCode get_coords_vertex( const int rank, const DM& dm, const PetscInt p
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
+// ----------------------------------------------------------------------------
 // pointID が depth=1 (辺)のとき，座標を計算する 
-PetscErrorCode get_coords_face( const int rank, const DM& dm, const PetscInt p, std::vector<double>& xy )
+PetscErrorCode get_coords_face( const DM& dm, const PetscInt p, std::vector<double>& xy )
 {
   DM cdm = NULL; //座標用DM
   Vec coords_loc = NULL;
@@ -606,152 +749,64 @@ PetscErrorCode get_coords_face( const int rank, const DM& dm, const PetscInt p, 
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
-// 変位の出力
-PetscErrorCode show_displacement( const int rank, const DM& dm, const Vec& sol )
+// ----------------------------------------------------------------------------
+// pointID に対応する点の座標を計算する
+PetscErrorCode get_coords( const DM& dm, const PetscInt p, std::vector<double>& xy )
 {
-  // セクション取得など
-  PetscSection sec;
-  Vec coords_loc = NULL;
-  PetscInt dim = 0;
-  PetscCall( DMGetCoordinatesLocal( dm, &coords_loc ) );
-  PetscCall( DMGetLocalSection( dm, &sec ) );
-  PetscCall( DMGetCoordinateDim( dm, &dim ) );
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
 
-  // グローバル解をローカルに
-  Vec sol_loc;
-  PetscCall( DMGetLocalVector( dm, &sol_loc ) );
-  PetscCall( DMGlobalToLocalBegin( dm, sol, INSERT_VALUES, sol_loc ) );
-  PetscCall( DMGlobalToLocalEnd  ( dm, sol, INSERT_VALUES, sol_loc ) );
+  xy.resize( dim, 0.0 );
 
-  // 配列ポインタを取得
-  const PetscScalar* sol_arr = NULL;
-  PetscCall( VecGetArrayRead( sol_loc, &sol_arr ) );
+  PetscInt depth;
+  PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
+  if( depth == 2 ) PetscFunctionReturn( PETSC_SUCCESS );
 
-  // 範囲（セル）
-  PetscInt c_start=0, c_end=0;
-  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+  if( depth == 1 ) PetscCall( get_coords_face( dm, p, xy ) );
+  if( depth == 0 ) PetscCall( get_coords_vertex( dm, p, xy ) );
 
-  // セルでループ
-  for( PetscInt c=c_start; c<c_end; c++ )
-  {
-    PetscInt npts = 0;
-    PetscInt* pts = NULL;
-    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
-
-    // このセルのポイントでループ
-    for( PetscInt k=0; k<npts; k++ )
-    {
-      const PetscInt p = pts[2*k];
-      PetscInt depth;
-      PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
-      if( depth == 2 ) continue; // pがセルなら飛ばす
-
-      PetscInt dof = 0;
-      PetscInt off = 0;
-      PetscCall( PetscSectionGetDof( sec, p, &dof ) );
-      PetscCall( PetscSectionGetOffset( sec, p, &off ) );
-
-      // 解ベクトル
-      const PetscScalar ux  = sol_arr[off + 0];
-      const PetscScalar uy  = sol_arr[off + 1];
-
-      // 座標
-      std::vector<double> xy( dim, 0.0 );
-      if( depth == 1 )
-      {
-        PetscCall( get_coords_face( rank, dm, p, xy ) );
-      }
-      if( depth == 0 )
-      {
-        PetscCall( get_coords_vertex( rank, dm, p, xy ) );
-      }
-
-      // 出力
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c= %5d k=%5d p=%5d depth=%5d dof=%5d off=%5d (x y)=%15.5e%15.5e (u v)=%15.5e%15.5e\n",
-          rank, c, k, p, depth, dof, off, xy[0], xy[1], ux, uy );
-    }
-    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
-  }
-
-  // 後片付け
-  PetscCall( VecRestoreArrayRead( sol_loc, &sol_arr ) );
-  PetscCall( DMRestoreLocalVector( dm,     &sol_loc ) );
-
-
-  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
-// セル c のローカル DOF 対応とke行番号の対応を作る
-PetscErrorCode build_cell_dof_map( const int rank, const DM& dm, const PetscSection& sec, const PetscInt c,
-  PetscInt& ncelldof, PetscInt* idx, PetscInt* pt, PetscInt* comp )
+// ----------------------------------------------------------------------------
+// セルのクロージャ順とKe行番号順の対応を作る（P2三角形）
+PetscErrorCode get_permutation( std::vector<int>& permt )
 {
-  // セル c のトランジティブ・クロージャ（点の並び）を取得
-  // clos は [point, orientation, point, orientation, ...] の 2*nclos 長
-  PetscInt *clos = NULL;
-  PetscInt nclos = 0;
-  PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &nclos, &clos ) );
+  permt = { 5, 3, 4, 0, 1, 2 };
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
 
-  // 変位の成分数 Nc を取得（単一フィールドのベクトル2成分を想定）
-  PetscInt Nc = 1; // 成分数
-  PetscInt Nf = 0; // フィールド数
-  PetscCall( PetscSectionGetNumFields(sec, &Nf) );
-  if( Nf > 0 )
-  {
-    // 有限要素なら DMGetField で PetscFE から成分数をとるのが確実
-    PetscObject fobj = NULL;
-    DMGetField( dm, 0, NULL, &fobj );
-    if( fobj )
-    {
-      PetscFE fe = (PetscFE)fobj;
-      PetscCall( PetscFEGetNumComponents( fe, &Nc ) );
+// ----------------------------------------------------------------------------
+// Ke をセルのクロージャ順に並べ替える（P2三角形）
+PetscErrorCode permutate_Kuue_matrix( const int nnode, const int dim, PetscScalar* Kuue )
+{
+  int rows = nnode * dim;
+  int cols = nnode * dim;
+  double *Kuue_tmp = new double[ rows * cols ];
+
+  for( int i=0; i<rows*cols; i++ ) Kuue_tmp[i] = Kuue[i];
+
+  std::vector<int> permt;
+  PetscCall( get_permutation( permt ) );
+
+  for( int i=0; i<nnode; i++ ){
+    int io = permt[i];
+    for( int k=0; k<dim; k++ ){
+      int ik  = i *dim+k;
+      int iok = io*dim+k;
+      for( int j=0; j<nnode; j++ ){
+        int jo = permt[j];
+        for( int l=0; l<dim; l++ ){
+          int jl  = j *dim+l;
+          int jol = jo*dim+l;
+          Kuue[ik*cols+jl] = Kuue_tmp[iok*cols+jol];
+        }
+      }
     }
   }
-  else 
-  {
-    // Nf==0 の場合は「全部ひとつの場」として格納されており、
-    // P2弾性なら頂点/辺の dof は 2 になるはず。最初に正の dof を見つけて推定しておく
-  }
-  //+++
-  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d Nf=%5d Nc=%5d\n", rank, c, Nf, Nc );
-  for( int i=0; i<nclos; i++ )
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d clos[%3d]=%5d%5d (point, orientation)\n", rank, c, i, clos[2*i], clos[2*i+1] );
-  }
-  //---
 
-  // クロージャ順に sec から（offset, dof）を拾ってローカル添字を並べる
-  PetscInt pos = 0;
-  for( PetscInt i=0; i<nclos; i++ )
-  {
-    PetscInt p = clos[2*i];
-    PetscInt dof=0, off=0;
-    PetscCall( PetscSectionGetDof( sec, p, &dof ) );
-    if( !dof ) continue; // セル本体など dof=0 はスキップ
-    PetscCall( PetscSectionGetOffset( sec, p, &off ) );
-    //+++
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d p=%5d dof=%5d off=%5d\n", rank, c, p, dof, off );
-    //---
-    for( PetscInt k=0; k<dof; k++ )
-    {
-      idx[pos] = off + k;
-      pt[pos] = p;
-      comp[pos] = (Nc>0)? (k%Nc) : 0;
-      pos++;
-    }
-  }
-  ncelldof = pos;
-  //+++
-  for( int i=0; i<ncelldof; i++ )
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d idx[%3d]=%5d pt[%3d]=%5d comp[%3d]=%5d\n",
-      rank, c, i, idx[i], i, pt[i], i, comp[i] );
-  }
-  //---
-
-  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
-
-  PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &nclos, &clos ) );
+  delete[] Kuue_tmp;
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 

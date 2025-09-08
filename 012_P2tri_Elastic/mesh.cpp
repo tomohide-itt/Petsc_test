@@ -9,7 +9,7 @@ bool close2( const double a, const double b, const double tol )
 }
 
 //
-void read_msh_nodes( const std::string& mesh_path, node_vec &nodes )
+void read_msh_nodes( const std::string& mesh_path, msh::node_vec &nodes )
 {
   // mshファイルを開く
   std::ifstream fmsh;
@@ -33,7 +33,7 @@ void read_msh_nodes( const std::string& mesh_path, node_vec &nodes )
   num_nodes = stoi( ss );
 
   // 節点情報を読む
-  node nd;
+  msh::node nd;
   for( int n=1; n<=num_nodes; n++ )
   {
     fmsh >> nd.ID >> nd.x >> nd.y >> nd.z;
@@ -44,7 +44,7 @@ void read_msh_nodes( const std::string& mesh_path, node_vec &nodes )
 }
 
 //
-void read_msh_elems( const std::string& mesh_path, elem_vec &elems )
+void read_msh_elems( const std::string& mesh_path, msh::elem_vec &elems )
 {
   // mshファイルを開く
   std::ifstream fmsh;
@@ -97,7 +97,7 @@ void read_msh_elems( const std::string& mesh_path, elem_vec &elems )
     }
     if( find )
     {
-      elem elm;
+      msh::elem elm;
       elm.ID = elem_tag;
       elm.type = elem_type;
       elm.nodeIDs = nodeIDs;
@@ -114,24 +114,152 @@ void read_msh_elems( const std::string& mesh_path, elem_vec &elems )
   fmsh.close();
 }
 
-//
-void show_elems( const std::vector<elem>& elems )
+// ----------------------------------------------------------------------------
+// DMPlexのセルpointIDとgmshのelementTagの紐づけ
+PetscErrorCode get_elemID_map( const DM& dm, const msh::node_vec& nodes, const msh::elem_vec& elems,
+  std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug )
 {
-  std::cout << "number of elems = " << elems.size() << std::endl;
-  for( int i=0; i<elems.size(); i++ )
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // ローカルで座標の配列を取得
+  Vec crds_loc = NULL;
+  PetscCall( DMGetCoordinatesLocal( dm, &crds_loc ) );
+  const PetscScalar *crds_loc_arr;
+  if( crds_loc ) PetscCall( VecGetArrayRead( crds_loc, &crds_loc_arr ) );
+
+  // 座標セクションとセルのポイント番号の範囲を取得
+  PetscSection csec = NULL;
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMGetCoordinateSection( dm, &csec ) );
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  std::vector<bool> visited_elem( elems.size(), false );
+  for( PetscInt c=c_start; c<c_end; c++ )
   {
-    std::cout << "ID: " << std::setw(7) << elems[i].ID;
-    std::cout << " nodeIDs: ";
-    for( int j=0; j<elems[i].nodeIDs.size(); j++ )
+    // セルごとに節点の座標値を取得
+    PetscInt dof, off;
+    PetscCall( PetscSectionGetDof(    csec, c, &dof ) );
+    PetscCall( PetscSectionGetOffset( csec, c, &off ) );
+    PetscInt num_node = dof/dim;
+    std::vector<std::vector<double>> xyz( num_node, std::vector<double>( dim, 0.0 ) );
+    for( int n=0; n<num_node; n++ )
     {
-      std::cout << std::setw(7) << elems[i].nodeIDs[j];
+      for( int i=0; i<dim; i++ )
+      {
+        xyz[n][i] = (double)PetscRealPart( crds_loc_arr[ off + n*dim + i ] );
+      }
     }
-    std::cout << std::endl;
+    if( debug )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d %s[%d] : coordinates\n", rank, __FUNCTION__, __LINE__ );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d num_node=%5d\n", rank, c, num_node );
+      for( int n=0; n<num_node; n++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d", rank );
+        for( int i=0; i<dim; i++ )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", xyz[n][i] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+      }
+    }
+
+    //---
+    // elemsと突き合わせて，6点の座標値が一致していれば，そのelemsのIDとpのマップを登録する
+    double tol = 1.0e-8;
+
+    for( const msh::elem &e : elems )
+    {
+      if( e.nodeIDs.size() != num_node ) continue;
+      int eidx = elems.idx_of_id( e.ID );
+      if( visited_elem[eidx] ) continue;
+      
+      if( 0 )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "check elem ID=%d\n", e.ID );
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "eidx=%d\n", eidx );
+      }
+      
+      std::vector<bool> visited_node( num_node, false );
+      bool identical = true;
+      for( int nid=0; nid<num_node; nid++ )
+      {
+        const msh::node& nd = nodes.id_of(e.nodeIDs[nid]);
+        
+        if( 0 )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  e.nodeIDs[%5d]=%d\n", nid, e.nodeIDs[nid] );
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  node ID=%d\n", nd.ID );
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  " );
+          if( dim >= 1 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.x );
+          if( dim >= 2 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.y );
+          if( dim >= 3 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", nd.z );
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+        }
+
+        bool find = false;
+        for( int n=0; n<num_node; n++ )
+        {
+          if( visited_node[n] ) continue;
+          bool same = true;
+          if( dim == 2 )
+          {
+            same = same && close2( nd.x, xyz[n][0], tol ) && close2( nd.y, xyz[n][1], tol );
+          }
+          if( same )
+          {
+            visited_node[n] = true;
+            find = true;
+            break;
+          }
+        }
+        
+        if( 0 ) PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  find=%d\n", find );
+        
+        identical = identical && find;
+        if( !find ) break;
+      }
+      if( identical )
+      {
+        visited_elem[eidx] = true;
+        eID2pID[e.ID] = c;
+        pID2eID[c] = e.ID;
+        if( 0 )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "elems.ID = %d is identical with %d\n", e.ID, c );
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+        }
+        break;
+      }
+    }
   }
+
+  if (crds_loc)  PetscCall( VecRestoreArrayRead( crds_loc,  &crds_loc_arr ) );
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d %s[%d] : pID2eID\n", rank, __FUNCTION__, __LINE__ );
+    for( const auto& [pID, eID] : pID2eID )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d, pID=%7d, eID=%7d\n", rank, pID, eID );
+    }
+  }
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  PetscFunctionReturn( PETSC_SUCCESS );
 }
 
 //
-void output_vtk( const std::string& vtk_path, const int rank, const int nproc, const std::map<int,int>& pID2eID, node_vec &nodes, elem_vec& elems )
+void output_vtk( const std::string& vtk_path, const int rank, const int nproc, const std::map<int,int>& pID2eID,
+  msh::node_vec &nodes, msh::elem_vec& elems )
 {
   int size = pID2eID.size();
   int* rank_of_elem;

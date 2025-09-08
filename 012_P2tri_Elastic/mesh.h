@@ -10,6 +10,9 @@
 #include <petscdmplex.h>
 #include <petscksp.h>
 
+namespace msh
+{
+
 class node
 {
 public:
@@ -103,11 +106,15 @@ private:
     std::map<int,int> m_idx2id;
 };
 
+}
+
+PetscErrorCode get_elemID_map( const DM& dm, const msh::node_vec& nodes, const msh::elem_vec& elems,
+    std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug=false );
+
 bool close2( const double a, const double b, const double tol );
-void read_msh_nodes( const std::string& mesh_path, node_vec &nodes );
-void read_msh_elems( const std::string& mesh_path, elem_vec &elems );
-void show_elems( const std::vector<elem>& elems );
-void output_vtk( const std::string& vtk_path, const int rank, const int nproc, const std::map<int,int>& pID2eID, node_vec& nodes, elem_vec& elems );
+void read_msh_nodes( const std::string& mesh_path, msh::node_vec &nodes );
+void read_msh_elems( const std::string& mesh_path, msh::elem_vec &elems );
+void output_vtk( const std::string& vtk_path, const int rank, const int nproc, const std::map<int,int>& pID2eID, msh::node_vec& nodes, msh::elem_vec& elems );
 
 #endif
 
