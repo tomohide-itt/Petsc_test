@@ -18,11 +18,11 @@ PetscErrorCode create_FE( const DM& dm, PetscFE& fe );
 PetscErrorCode cal_D_matrix( const double E, const double nu, PetscScalar* D );
 PetscErrorCode merge_Kuu_matrix( const DM& dm, const PetscScalar* D, Mat& A, const bool debug=false );
 
-PetscErrorCode set_Dirichlet_zero( const int rank, const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
-PetscErrorCode set_nodal_force( const int rank, const DM& dm, const PetscFE& fe,
+PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
+PetscErrorCode set_nodal_force( const DM& dm, const PetscFE& fe,
   const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b );
 
-PetscErrorCode show_displacement( const int rank, const DM& dm, const Vec& sol );
+PetscErrorCode show_displacement( const DM& dm, const Vec& sol );
 
 PetscErrorCode get_coords_face( const DM& dm, const PetscInt p, std::vector<double>& xy );
 PetscErrorCode get_coords_vertex( const DM& dm, const PetscInt p, std::vector<double>& xy );

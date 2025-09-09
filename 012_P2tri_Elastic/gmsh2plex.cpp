@@ -90,13 +90,10 @@ int main(int argc,char **argv)
   PetscCall( merge_Kuu_matrix( dm, D, A, true ) );
 
   //=== 節点力 ==============================================================================
-  PetscCall( set_nodal_force( rank, dm, fe, 2, -10, 1, b ) );
+  PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
 
   //=== Dirichlet境界条件 ==============================================================================
-  PetscCall( set_Dirichlet_zero( rank, dm, 4, A, b ) );
-
-  PetscCall( VecAssemblyBegin( b ) );
-  PetscCall( VecAssemblyEnd( b ) );
+  PetscCall( set_Dirichlet_zero( dm, 4, A, b ) );
 
   //=== ソルバーで解く ==============================================================================
   KSP ksp;
@@ -107,7 +104,7 @@ int main(int argc,char **argv)
   PetscCall( KSPSolve( ksp, b, sol ) );
 
   //=== 変位の出力 ==============================================================================
-  PetscCall( show_displacement( rank, dm, sol ) );
+  PetscCall( show_displacement( dm, sol ) );
 
   PetscCall(VecDestroy(&sol));
   PetscCall(VecDestroy(&b));
