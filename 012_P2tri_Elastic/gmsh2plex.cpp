@@ -39,14 +39,6 @@ int main(int argc,char **argv)
     exit(1);
   }
 
-  //=== .mshから節点を読込む ===============================================================================
-  msh::node_vec nodes;
-  read_msh_nodes( mesh_path, nodes );
-
-  //=== .mshから要素を読込む ===============================================================================
-  msh::elem_vec elems;
-  read_msh_elems( mesh_path, elems );
-
   //=== .mshをDMPlexで読み込む ==============================================================================
   DM dm = NULL; // 解析用DM
   read_gmsh( mesh_path, dm );
@@ -56,17 +48,17 @@ int main(int argc,char **argv)
   PetscCall( partition_mesh( dm, dm_dist ) );
 
   //=== 頂点，面，セルのIDの範囲を出力 ==============================================================================
-  PetscCall( show_vertexID_range( dm ) );
-  PetscCall( show_faceID_range(   dm ) );
-  PetscCall( show_cellID_range(   dm ) );
+//  PetscCall( show_vertexID_range( dm ) );
+//  PetscCall( show_faceID_range(   dm ) );
+//  PetscCall( show_cellID_range(   dm ) );
 
   //=== 座標の表示 ==============================================================================
-  PetscCall( show_coords_each_cell( dm ) );
+//  PetscCall( show_coords_each_cell( dm ) );
 
   //=== DMPlexのセルpointIDとgmshのelementTagの紐づけ ========================================================
   std::map<int,int> eID2pID;
   std::map<int,int> pID2eID;
-  PetscCall( get_elemID_map( dm, nodes, elems, eID2pID, pID2eID, true ) );
+  PetscCall( get_elemID_map( mesh_path, dm, eID2pID, pID2eID ) );
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
@@ -87,7 +79,7 @@ int main(int argc,char **argv)
   PetscCall( cal_D_matrix( E, nu, D ) );
 
   //=== Kuuマトリクスをマージ ==============================================================================
-  PetscCall( merge_Kuu_matrix( dm, D, A, true ) );
+  PetscCall( merge_Kuu_matrix( dm, D, A, false ) );
 
   //=== 節点力 ==============================================================================
   PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
@@ -106,10 +98,10 @@ int main(int argc,char **argv)
   //=== 変位の出力 ==============================================================================
   PetscCall( show_displacement( dm, sol ) );
 
-  PetscCall(VecDestroy(&sol));
-  PetscCall(VecDestroy(&b));
-  PetscCall(MatDestroy(&A));
-  PetscCall(PetscFEDestroy(&fe));
+  PetscCall( VecDestroy( &sol ) );
+  PetscCall( VecDestroy( &b ) );
+  PetscCall( MatDestroy( &A ) );
+  PetscCall( PetscFEDestroy( &fe ) );
   PetscCall( DMDestroy( &dm ) );
   PetscCall( DMDestroy( &dm_dist ) );
   PetscCall( PetscFinalize() );

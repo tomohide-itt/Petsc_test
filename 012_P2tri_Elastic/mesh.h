@@ -110,6 +110,8 @@ private:
 
 PetscErrorCode get_elemID_map( const DM& dm, const msh::node_vec& nodes, const msh::elem_vec& elems,
     std::map<int,int>& eID2pID, std::map<int,int>& pID2eID, const bool debug=false );
+PetscErrorCode get_elemID_map( const std::string& mesh_path, const DM& dm,
+    std::map<int,int>& eID2pID, std::map<int,int>& pID2eID );
 
 bool close2( const double a, const double b, const double tol );
 void read_msh_nodes( const std::string& mesh_path, msh::node_vec &nodes );

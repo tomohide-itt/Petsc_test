@@ -12,7 +12,7 @@ PetscErrorCode read_gmsh( const std::string& mesh_path, DM &dm )
   // 次元が2なら何もしない．そうでなければメッセージを出力して処理を中断 
   PetscCheck( dim==2, PETSC_COMM_WORLD, PETSC_ERR_SUP, "このサンプルは2D専用です");
   //+++
-  PetscPrintf( PETSC_COMM_WORLD, "%s[%d] dim = %d\n", __FUNCTION__, __LINE__, (int)dim );
+  //PetscPrintf( PETSC_COMM_WORLD, "%s[%d] dim = %d\n", __FUNCTION__, __LINE__, (int)dim );
   //---
   PetscFunctionReturn( PETSC_SUCCESS );
 }
@@ -270,15 +270,18 @@ PetscErrorCode merge_Kuu_matrix( const DM& dm, const PetscScalar* D, Mat& A, con
     } // for( gp )
 
     //+++
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d : Ke\n", rank, c );
-    for( int i=0; i<12; i++ )
+    if( debug )
     {
-      for( int j=0; j<12; j++ )
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d : Ke\n", rank, c );
+      for( int i=0; i<12; i++ )
       {
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", Ke[i*12+j] );
+        for( int j=0; j<12; j++ )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%12.3e", Ke[i*12+j] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
       }
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
     }
     //---
 
@@ -350,7 +353,7 @@ PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A,
       const PetscInt f = faces[i];
 
       // f の節点出力
-      PetscCall( show_coords_boundary( rank, dm, f ) );
+      //PetscCall( show_coords_boundary( rank, dm, f ) );
 
       // P2の辺中点DOF
       PetscInt dof=0, off=0;
@@ -460,7 +463,7 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscFE& fe,
       const PetscInt f = faces[i];
 
       // f の節点出力
-      PetscCall( show_coords_boundary( rank, dm, f ) );
+      //PetscCall( show_coords_boundary( rank, dm, f ) );
 
       // P2の辺中点DOF
       PetscInt dof=0, off=0;

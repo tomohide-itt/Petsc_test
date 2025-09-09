@@ -257,6 +257,23 @@ PetscErrorCode get_elemID_map( const DM& dm, const msh::node_vec& nodes, const m
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
+// ----------------------------------------------------------------------------
+PetscErrorCode get_elemID_map( const std::string& mesh_path, const DM& dm,
+    std::map<int,int>& eID2pID, std::map<int,int>& pID2eID )
+{
+  // .mshから節点を読込む
+  msh::node_vec nodes;
+  read_msh_nodes( mesh_path, nodes );
+
+  // .mshから要素を読込む
+  msh::elem_vec elems;
+  read_msh_elems( mesh_path, elems );
+
+  PetscCall( get_elemID_map( dm, nodes, elems, eID2pID, pID2eID, false ) );
+
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
 //
 void output_vtk( const std::string& vtk_path, const int rank, const int nproc, const std::map<int,int>& pID2eID,
   msh::node_vec &nodes, msh::elem_vec& elems )
