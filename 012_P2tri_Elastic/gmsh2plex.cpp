@@ -9,6 +9,9 @@
 #include <petscksp.h>
 #include "functions.h"
 #include "mesh.h"
+#include "node.h"
+#include "elem.h"
+#include "gmsh.h"
 
 int main(int argc,char **argv)
 {
@@ -47,6 +50,22 @@ int main(int argc,char **argv)
   DM dm_dist = NULL;
   PetscCall( partition_mesh( dm, dm_dist ) );
 
+  //=== 節点の設定 ==============================================================================
+  node_vec nodes;
+  PetscCall( set_nodes( dm, nodes ) );
+  nodes.show();
+
+  //=== 要素の設定 ==============================================================================
+  elem_vec elems;
+  PetscCall( set_elems( dm, nodes, elems ) );
+  elems.show();
+
+  //=== tag - id - pid の関係を得る ==============================================================================
+  std::map<int,int> ntag2gnid, gnid2ntag;
+  std::map<int,int> etag2geid, geid2etag;
+  std::map<int,int> etag2lpid, lpid2etag;
+  PetscCall( get_mesh_info( mesh_path, dm, ntag2gnid, gnid2ntag, etag2geid, geid2etag ) );
+
   //=== 頂点，面，セルのIDの範囲を出力 ==============================================================================
 //  PetscCall( show_vertexID_range( dm ) );
 //  PetscCall( show_faceID_range(   dm ) );
@@ -55,6 +74,7 @@ int main(int argc,char **argv)
   //=== 座標の表示 ==============================================================================
 //  PetscCall( show_coords_each_cell( dm ) );
 
+/*
   //=== DMPlexのセルpointIDとgmshのelementTagの紐づけ ========================================================
   std::map<int,int> eID2pID;
   std::map<int,int> pID2eID;
@@ -79,7 +99,7 @@ int main(int argc,char **argv)
   PetscCall( cal_D_matrix( E, nu, D ) );
 
   //=== Kuuマトリクスをマージ ==============================================================================
-  PetscCall( merge_Kuu_matrix( dm, D, A, false ) );
+  PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
   //=== 節点力 ==============================================================================
   PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
@@ -96,12 +116,14 @@ int main(int argc,char **argv)
   PetscCall( KSPSolve( ksp, b, sol ) );
 
   //=== 変位の出力 ==============================================================================
-  PetscCall( show_displacement( dm, sol ) );
+  PetscCall( set_displacement( dm, sol, nodes ) );
+  PetscCall( show_displacement( elems ) );
 
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );
   PetscCall( MatDestroy( &A ) );
   PetscCall( PetscFEDestroy( &fe ) );
+  */
   PetscCall( DMDestroy( &dm ) );
   PetscCall( DMDestroy( &dm_dist ) );
   PetscCall( PetscFinalize() );

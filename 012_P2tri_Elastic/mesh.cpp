@@ -269,7 +269,7 @@ PetscErrorCode get_elemID_map( const std::string& mesh_path, const DM& dm,
   msh::elem_vec elems;
   read_msh_elems( mesh_path, elems );
 
-  PetscCall( get_elemID_map( dm, nodes, elems, eID2pID, pID2eID, false ) );
+  PetscCall( get_elemID_map( dm, nodes, elems, eID2pID, pID2eID, true ) );
 
   PetscFunctionReturn( PETSC_SUCCESS );
 }

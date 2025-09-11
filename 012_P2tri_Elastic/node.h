@@ -16,11 +16,13 @@ public:
     node( int p, double x, double y, double z ) : pid(p)
     {
         xy[0] = x;  xy[1] = y;  xy[2] = z;
+        uv = { 0.0, 0.0, 0.0 };
     }
 public:
     int id;
     int pid;
     std::array<double,3> xy;
+    std::array<double,3> uv;
 };
 
 class node_vec
@@ -38,6 +40,21 @@ public:
         m_pid2idx[nd.pid] = max_idx;
         m_idx2pid[max_idx] = nd.pid;
         max_idx++;
+    }
+    void show()
+    {
+        // rankの取得
+        PetscMPIInt rank;
+        MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d : Nodal points\n", rank );
+
+        for( int i=0; i<this->size(); i++ )
+        {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d id=%5d pid=%5d (x y z)=%15.5e%15.5e%15.5e\n",
+                rank, i, m_nodes[i].pid, m_nodes[i].xy[0], m_nodes[i].xy[1], m_nodes[i].xy[2] );
+        }
+        PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
     }
 private:
     std::vector<node> m_nodes;
