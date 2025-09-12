@@ -10,6 +10,8 @@
 #include <petscdmplex.h>
 #include <petscksp.h>
 
+class elem_vec;
+
 namespace gmsh
 {
     class node
@@ -23,6 +25,9 @@ namespace gmsh
     {
     public:
         node_vec() : max_idx(0){}
+        const int size()const{ return m_nodes.size(); }
+        const node& operator[]( const int idx ) const{ return m_nodes[idx]; }
+        node& operator[]( const int idx ){ return m_nodes[idx]; }
         void push_back( const node& nd )
         {
             m_nodes.push_back(nd);
@@ -50,6 +55,11 @@ namespace gmsh
     {
     public:
         elem_vec() : max_idx(0){}
+        const int size()const{ return m_elems.size(); }
+        std::vector<elem>::iterator begin(){ return m_elems.begin(); }
+        std::vector<elem>::const_iterator begin() const{ return m_elems.begin(); }
+        std::vector<elem>::iterator end(){ return m_elems.end(); }
+        std::vector<elem>::const_iterator end() const{ return m_elems.end(); }
         void push_back( const elem& e )
         {
             m_elems.push_back(e);
@@ -71,7 +81,7 @@ namespace gmsh
 }
 
 PetscErrorCode get_elem_tag_local_pid_map( const DM& dm, const gmsh::node_vec& nodes, const gmsh::elem_vec& elems,
-    std::map<int,int>& etag2lpid, std::map<int,int>& lpid2etag, const bool debug=false );
+    std::map<int,int>& etag2lpid, std::map<int,int>& lpid2etag, std::map<int,int>& ntag2lpid, std::map<int,int>& lpid2ntag, const bool debug=false );
 
 PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
     std::map<int,int>& ntag2gnid, std::map<int,int>& gnid2ntag,

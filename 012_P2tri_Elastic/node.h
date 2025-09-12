@@ -34,6 +34,10 @@ public:
     node& operator[]( const int idx ){ return m_nodes[idx]; }
     const node& pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }
     node& pid_is( const int pid ){ return m_nodes[m_pid2idx.at(pid)]; }
+    std::vector<node>::iterator begin(){ return m_nodes.begin(); }
+    std::vector<node>::const_iterator begin() const{ return m_nodes.begin(); }
+    std::vector<node>::iterator end(){ return m_nodes.end(); }
+    std::vector<node>::const_iterator end() const{ return m_nodes.end(); }
     void push_back( const node& nd )
     {
         m_nodes.push_back(nd);
