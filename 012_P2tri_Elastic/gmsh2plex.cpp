@@ -74,12 +74,6 @@ int main(int argc,char **argv)
   //=== 座標の表示 ==============================================================================
 //  PetscCall( show_coords_each_cell( dm ) );
 
-/*
-  //=== DMPlexのセルpointIDとgmshのelementTagの紐づけ ========================================================
-  std::map<int,int> eID2pID;
-  std::map<int,int> pID2eID;
-  PetscCall( get_elemID_map( mesh_path, dm, eID2pID, pID2eID ) );
-
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
   create_FE( dm, fe );
@@ -123,7 +117,6 @@ int main(int argc,char **argv)
   PetscCall( VecDestroy( &b ) );
   PetscCall( MatDestroy( &A ) );
   PetscCall( PetscFEDestroy( &fe ) );
-  */
   PetscCall( DMDestroy( &dm ) );
   PetscCall( DMDestroy( &dm_dist ) );
   PetscCall( PetscFinalize() );
