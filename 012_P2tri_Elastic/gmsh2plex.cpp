@@ -8,7 +8,6 @@
 #include <petscdmplex.h>
 #include <petscksp.h>
 #include "functions.h"
-#include "mesh.h"
 #include "node.h"
 #include "elem.h"
 #include "gmsh.h"
@@ -53,26 +52,19 @@ int main(int argc,char **argv)
   //=== 節点の設定 ==============================================================================
   node_vec nodes;
   PetscCall( set_nodes( dm, nodes ) );
-  nodes.show();
+  //nodes.show();
 
   //=== 要素の設定 ==============================================================================
   elem_vec elems;
   PetscCall( set_elems( dm, nodes, elems ) );
-  elems.show();
+  //elems.show();
 
   //=== tag - id - pid の関係を得る ==============================================================================
   std::map<int,int> ntag2gnid, gnid2ntag;
   std::map<int,int> etag2geid, geid2etag;
   std::map<int,int> etag2lpid, lpid2etag;
-  PetscCall( get_mesh_info( mesh_path, dm, ntag2gnid, gnid2ntag, etag2geid, geid2etag ) );
-
-  //=== 頂点，面，セルのIDの範囲を出力 ==============================================================================
-//  PetscCall( show_vertexID_range( dm ) );
-//  PetscCall( show_faceID_range(   dm ) );
-//  PetscCall( show_cellID_range(   dm ) );
-
-  //=== 座標の表示 ==============================================================================
-//  PetscCall( show_coords_each_cell( dm ) );
+  std::map<int,int> ntag2lpid, lpid2ntag;
+  PetscCall( get_mesh_info( mesh_path, dm, ntag2gnid, gnid2ntag, etag2geid, geid2etag, ntag2lpid, lpid2ntag, etag2lpid, lpid2etag ) );
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
@@ -111,7 +103,10 @@ int main(int argc,char **argv)
 
   //=== 変位の出力 ==============================================================================
   PetscCall( set_displacement( dm, sol, nodes ) );
-  PetscCall( show_displacement( elems ) );
+//  PetscCall( show_displacement( elems ) );
+
+  //=== vtk ファイルの出力 ==============================================================================
+  output_vtk( vtk_path, nodes, elems, lpid2ntag );
 
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );

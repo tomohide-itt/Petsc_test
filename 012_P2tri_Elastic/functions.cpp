@@ -54,6 +54,8 @@ PetscErrorCode set_nodes( DM& dm, node_vec& nodes )
   PetscInt c_start=0, c_end=0;
   PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
 
+  std::set<int> added_p;
+
   // セルでループ
   for( PetscInt c=c_start; c<c_end; c++ )
   {
@@ -74,7 +76,11 @@ PetscErrorCode set_nodes( DM& dm, node_vec& nodes )
       PetscCall( get_coords( dm, p, xy ) );
 
       node nd( p, xy[0], xy[1], xy[2] );
-      nodes.push_back( nd );
+      if( !added_p.count( p ) )
+      {
+        added_p.insert( p );
+        nodes.push_back( nd );
+      }
     }
     PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
   }
@@ -549,6 +555,352 @@ PetscErrorCode show_displacement( const elem_vec& elems )
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// vtkファイルの出力
+void output_vtk( const std::string& vtk_path, const node_vec& nodes, const elem_vec& elems,
+  const std::map<int,int>& lpid2ntag )
+{
+  // rank, nprocの取得
+  PetscMPIInt rank, nproc;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+  MPI_Comm_size( PETSC_COMM_WORLD, &nproc );
+
+  std::vector<double> xy_vec;
+  std::vector<double> uv_vec;
+  std::vector<int> ntag_vec;
+  std::map<int,int> ntag2vidx;
+
+  int node_size = nodes.size();
+
+  if( nproc > 1 )
+  {
+    // 各ランクの xy 座標をベクトルに格納する
+    std::vector<double> loc_xy;
+    for( int n=0; n<nodes.size(); n++ )
+    {
+      loc_xy.push_back( nodes[n].xy[0] );
+      loc_xy.push_back( nodes[n].xy[1] );
+      loc_xy.push_back( nodes[n].xy[2] );
+    }
+    // 各ランクの uv をベクトルに格納する
+    std::vector<double> loc_uv;
+    for( int n=0; n<nodes.size(); n++ )
+    {
+      loc_uv.push_back( nodes[n].uv[0] );
+      loc_uv.push_back( nodes[n].uv[1] );
+      loc_uv.push_back( nodes[n].uv[2] );
+    }
+    // 各ランクの 節点タグ をベクトルに格納する
+    std::vector<int> loc_ntag;
+    for( int n=0; n<nodes.size(); n++ )
+    {
+      int lpid = nodes[n].pid;
+      int ntag = lpid2ntag.at(lpid);
+      loc_ntag.push_back( ntag );
+    }
+    //+++
+    //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- local vectors\n" );
+    //for( int i=0; i<nodes.size(); i++ )
+    //{
+    //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d i=%5d tag=%5d (x y)=%15.5e%15.5e\n",
+    //    rank, i, loc_ntag[i], loc_xy[i*3+0], loc_xy[i*3+1] );
+    //}
+    //PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+    //---
+
+    // 各ランクの nodeのサイズ をベクトル化
+    int nsize = nodes.size();
+    std::vector<int> nsize_vec( nproc );
+    MPI_Allgather( &nsize, 1, MPI_INT, nsize_vec.data(), 1, MPI_INT, PETSC_COMM_WORLD );
+    std::vector<int> nidxs( nproc+1 );
+    nidxs[0] = 0;
+    for( int i=1; i<=nproc; i++ ) nidxs[i] = nidxs[i-1] + nsize_vec[i-1];
+    int ntotal = nidxs[nproc];
+    node_size = ntotal;
+
+    // rank=0 に localなベクトルを集める
+    std::vector<double> glb_xy;
+    std::vector<double> glb_uv;
+    std::vector<int> glb_ntag;
+    if( rank == 0 )
+    {
+      glb_xy.resize( ntotal * 3 );
+      glb_uv.resize( ntotal * 3 );
+      glb_ntag.resize( ntotal );
+    }
+    if( rank == 0 )
+    {
+      memcpy( glb_xy.data(), loc_xy.data(), nsize*3*sizeof(double) );
+      memcpy( glb_uv.data(), loc_uv.data(), nsize*3*sizeof(double) );
+      memcpy( glb_ntag.data(), loc_ntag.data(), nsize*sizeof(int) );
+    }
+    for( int i=1; i<nproc; i++ )
+    {
+      if( rank == i )
+      {
+        MPI_Send( loc_xy.data(), nsize*3, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD );
+        MPI_Send( loc_uv.data(), nsize*3, MPI_DOUBLE, 0, 0, PETSC_COMM_WORLD );
+        MPI_Send( loc_ntag.data(), nsize, MPI_INT, 0, 0, PETSC_COMM_WORLD );
+      }
+      if( rank == 0 )
+      {
+        MPI_Recv( glb_xy.data()+nidxs[i]*3, nsize_vec[i]*3, MPI_DOUBLE, i, 0, PETSC_COMM_WORLD, MPI_STATUS_IGNORE );
+        MPI_Recv( glb_uv.data()+nidxs[i]*3, nsize_vec[i]*3, MPI_DOUBLE, i, 0, PETSC_COMM_WORLD, MPI_STATUS_IGNORE );
+        MPI_Recv( glb_ntag.data()+nidxs[i], nsize_vec[i], MPI_INT, i, 0, PETSC_COMM_WORLD, MPI_STATUS_IGNORE );
+      }
+    }
+    //+++
+    //if( rank == 0 )
+    //{
+    //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- global vectors\n" );
+    //  for( int i=0; i<ntotal; i++ )
+    //  {
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d i=%5d tag=%5d (x y)=%15.5e%15.5e\n",
+    //      rank, i, glb_ntag[i], glb_xy[i*3+0], glb_xy[i*3+1] );
+    //  }
+    //}
+    //PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+    //---
+
+    // tag が 重複しないようにベクトルを作る
+    if( rank == 0 )
+    {
+      std::set<int> added_tags;
+
+      for( int i=0; i<ntotal; i++ )
+      {
+        if( !added_tags.count( glb_ntag[i] ) )
+        {
+          xy_vec.push_back( glb_xy[i*3+0] );
+          xy_vec.push_back( glb_xy[i*3+1] );
+          xy_vec.push_back( glb_xy[i*3+2] );
+          uv_vec.push_back( glb_uv[i*3+0] );
+          uv_vec.push_back( glb_uv[i*3+1] );
+          uv_vec.push_back( glb_uv[i*3+2] );
+          ntag_vec.push_back( glb_ntag[i] );
+          added_tags.insert( glb_ntag[i] );
+          ntag2vidx[ glb_ntag[i] ] = ntag_vec.size()-1;
+        }
+      }
+      node_size = ntag_vec.size();
+    }
+  } // if( nproc > 1 )
+  else
+  {
+    for( int i=0; i<node_size; i++ )
+    {
+      xy_vec.push_back( nodes[i].xy[0] );
+      xy_vec.push_back( nodes[i].xy[1] );
+      xy_vec.push_back( nodes[i].xy[2] );
+      uv_vec.push_back( nodes[i].uv[0] );
+      uv_vec.push_back( nodes[i].uv[1] );
+      uv_vec.push_back( nodes[i].uv[2] );
+      int lpid = nodes[i].pid;
+      int ntag = lpid2ntag.at(lpid);
+      ntag_vec.push_back( ntag );
+      ntag2vidx[ ntag ] = i;
+    }
+  }
+
+  //if( rank == 0 )
+  //{
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- gathered vectors for nodes\n" );
+  //  for( int i=0; i<node_size; i++ )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d i=%5d tag=%5d (x y)=%15.5e%15.5e\n",
+  //      rank, i, ntag_vec[i], xy_vec[i*3+0], xy_vec[i*3+1] );
+  //  }
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- ntag2vidx\n" );
+  //  for( const auto& [ntag,vidx] : ntag2vidx )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d ntag=%5d - vidx=%5d\n", rank, ntag, vidx );
+  //  }
+  //}
+  //PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+
+  // 要素に関する変数について
+  std::vector<int> node_idx_vec;
+  int elem_size = elems.size();
+  std::vector<int> esize_vec;
+
+  if( nproc > 1 )
+  {
+    int max_node_per_elem = 6;
+    // 各ランクの 各要素に含まれる節点の tag -> index をベクトルに格納する
+    std::vector<int> loc_node_tags( elems.size() * max_node_per_elem );
+    for( int m=0; m<elems.size(); m++ )
+    {
+      for( int i=0; i<elems[m].num_nods; i++ )
+      {
+        int npid = elems[m].node_pids[i];
+        int ntag = lpid2ntag.at(npid);
+        loc_node_tags[m*max_node_per_elem + i] = ntag;
+      }
+    }
+
+    // 各ランクの elemのサイズをベクトル化
+    int esize = elems.size();
+    esize_vec.resize( nproc );
+    MPI_Allgather( &esize, 1, MPI_INT, esize_vec.data(), 1, MPI_INT, PETSC_COMM_WORLD );
+    std::vector<int> eidxs( nproc+1 );
+    eidxs[0] = 0;
+    for( int i=0; i<=nproc; i++ ) eidxs[i] = eidxs[i-1] + esize_vec[i-1];
+    int etotal = eidxs[nproc];
+    elem_size = etotal;
+
+    // rank=0 に localなベクトルを集める
+    std::vector<int> glb_node_tags;
+    if( rank == 0 )
+    {
+      glb_node_tags.resize( etotal * max_node_per_elem );
+    }
+    if( rank == 0 )
+    {
+      memcpy( glb_node_tags.data(), loc_node_tags.data(), esize*max_node_per_elem*sizeof(int) );
+    }
+    for( int i=1; i<nproc; i++ )
+    {
+      if( rank == i )
+      {
+        MPI_Send( loc_node_tags.data(), esize*max_node_per_elem, MPI_INT, 0, 0, PETSC_COMM_WORLD );
+      }
+      if( rank == 0 )
+      {
+        MPI_Recv( glb_node_tags.data()+eidxs[i]*max_node_per_elem, esize_vec[i]*max_node_per_elem, MPI_INT, i, 0, PETSC_COMM_WORLD, MPI_STATUS_IGNORE );
+      }
+    }
+    //+++
+    //if( rank == 0 )
+    //{
+    //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- global vectors for element\n" );
+    //  for( int i=0; i<etotal; i++ )
+    //  {
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d i=%5d ntags:", rank, i );
+    //    for( int j=0; j<max_node_per_elem; j++ )
+    //    {
+    //      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%5d", glb_node_tags[i*max_node_per_elem+j] );
+    //    }
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    //  }
+    //}
+    //PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+    //---
+
+    // glb_node_tags の tag を idxへ変換
+    if( rank == 0 )
+    {
+      node_idx_vec.resize( etotal * max_node_per_elem );
+      for( int i=0; i<etotal; i++ )
+      {
+        for( int j=0; j<max_node_per_elem; j++ )
+        {
+          int ntag = glb_node_tags[i*max_node_per_elem+j];
+          int nidx = ntag2vidx.at(ntag);
+          node_idx_vec[i*max_node_per_elem+j] = nidx;
+        }
+      }
+    }
+  } // if( nproc > 1 )
+  else
+  {
+    int max_node_per_elem = 6;
+    node_idx_vec.resize( elem_size * max_node_per_elem );
+    for( int i=0; i<elem_size; i++ )
+    {
+      for( int j=0; j<max_node_per_elem; j++ )
+      {
+        int npid = elems[i].node_pids[j];
+        int ntag = lpid2ntag.at(npid);
+        int nidx = ntag2vidx.at(ntag);
+        node_idx_vec[i*max_node_per_elem+j] = nidx;
+      }
+    }
+    esize_vec.push_back( elem_size );
+  }
+
+  //if( rank == 0 )
+  //{
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- gathered vectors for elems\n" );
+  //  for( int i=0; i<elem_size; i++ )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d elem[%5d] nidxs:", rank, i );
+  //    for( int j=0; j<6; j++ )
+  //    {
+  //      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%5d", node_idx_vec[i*6+j] );
+  //    }
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n");
+  //  }
+  //}
+  //PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+
+  // vtk ファイルへの出力
+  if( rank == 0 )
+  {
+    std::ofstream fprv;
+    fprv.open( vtk_path, std::ios::out );
+
+    std::ostringstream s_fprv;
+
+    // header of vtk file
+    s_fprv << "# vtk DataFile Version 4.1\n";
+		s_fprv << "output\n";
+		s_fprv << "ASCII\n";
+		s_fprv << "DATASET UNSTRUCTURED_GRID\n";
+    // 節点データの出力
+    s_fprv << "POINTS " << node_size << " float" << std::endl;
+    for( int nidx=0; nidx<node_size; nidx++ )
+    {
+      float x = static_cast<float>( xy_vec[nidx*3+0] );
+      float y = static_cast<float>( xy_vec[nidx*3+1] );
+      float z = static_cast<float>( xy_vec[nidx*3+2] );
+      s_fprv << x << " " << y << " " << z << std::endl;
+    }
+    // 頂点の数を数える（3角形のみに対応）
+    int numv = elem_size*(3+1);
+    // 要素データの出力
+    s_fprv << "CELLS " << elem_size << " " << numv << std::endl;
+    for( int eidx=0; eidx<elem_size; eidx++ )
+    {
+      s_fprv << 3;
+      for( int i=0; i<3; i++ )
+      {
+        int nidx = node_idx_vec[eidx*6+i];
+        s_fprv << " " << nidx;
+      }
+      s_fprv << std::endl;
+    }
+    // セルタイプの出力
+    s_fprv << "CELL_TYPES " << elem_size << std::endl;
+    for( int eidx=0; eidx<elem_size; eidx++ )
+    {
+      s_fprv << 5 << std::endl;
+    }
+    // 変位の出力
+    s_fprv << "POINT_DATA " << node_size << std::endl;
+    s_fprv << "VECTORS displacement float" << std::endl;
+    for( int nidx=0; nidx<node_size; nidx++ )
+    {
+      float ux = static_cast<float>( uv_vec[nidx*3+0] );
+      float uy = static_cast<float>( uv_vec[nidx*3+1] );
+      float uz = static_cast<float>( uv_vec[nidx*3+2] );
+      s_fprv << ux << " " << uy << " " << uz << std::endl;
+    }
+    // ランクの出力
+    s_fprv << "CELL_DATA " << elem_size << std::endl;
+    s_fprv << "SCALARS rank int" << std::endl;
+    s_fprv << "LOOKUP_TABLE default" << std::endl;
+    for( int r=0; r<nproc; r++ )
+    {
+      for( int i=0; i<esize_vec[r]; i++ )
+      {
+        s_fprv << r << std::endl;
+      }
+    }
+    fprv << s_fprv.str();
+    fprv.close();
+  }
 }
 
 // ----------------------------------------------------------------------------

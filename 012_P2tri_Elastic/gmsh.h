@@ -85,7 +85,11 @@ PetscErrorCode get_elem_tag_local_pid_map( const DM& dm, const gmsh::node_vec& n
 
 PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
     std::map<int,int>& ntag2gnid, std::map<int,int>& gnid2ntag,
-    std::map<int,int>& etag2geid, std::map<int,int>& geid2etag );
+    std::map<int,int>& etag2geid, std::map<int,int>& geid2etag,
+    std::map<int,int>& ntag2lpid, std::map<int,int>& lpid2ntag,
+    std::map<int,int>& etag2lpid, std::map<int,int>& lpid2etag );
+
+bool close2( const double a, const double b, const double tol );
 
 #endif
 

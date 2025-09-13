@@ -4,10 +4,11 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <algorithm>
 #include <petscdmplex.h>
 #include <petscksp.h>
-#include "mesh.h"
+//#include "mesh.h"
 #include "node.h"
 #include "elem.h"
 
@@ -30,6 +31,8 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscFE& fe,
 PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes );
 PetscErrorCode show_displacement( const elem_vec& elems );
 
+void output_vtk( const std::string& vtk_path, const node_vec& nodes, const elem_vec& elems,
+  const std::map<int,int>& lpid2ntag );
 
 
 PetscErrorCode get_coords_face( const DM& dm, const PetscInt p, std::vector<double>& xy );
