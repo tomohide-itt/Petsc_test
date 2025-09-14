@@ -1,0 +1,174 @@
+#include "functions.h"
+
+// ----------------------------------------------------------------------------
+// .mshをDMPlexで読み込む 
+PetscErrorCode read_gmsh( const std::string& mesh_path, DM &dm )
+{
+  // メッシュを補完ありで読み込む（第4引数はinterpolate=1に対応）
+  PetscCall( DMPlexCreateFromFile( PETSC_COMM_WORLD, mesh_path.c_str(), NULL, PETSC_TRUE, &dm ) );
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+  //+++
+  PetscPrintf( PETSC_COMM_WORLD, "%s[%d] dim = %d\n", __FUNCTION__, __LINE__, (int)dim );
+  //---
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// dm を領域分割する
+PetscErrorCode partition_mesh( DM &dm, DM &dm_dist )
+{
+  PetscMPIInt nproc;
+  MPI_Comm_size( PETSC_COMM_WORLD, &nproc );
+  if( nproc > 1 )
+  {
+    PetscPartitioner part;
+    PetscCall( DMPlexGetPartitioner( dm, &part ) );
+    PetscCall( PetscPartitionerSetType( part, PETSCPARTITIONERPARMETIS ) );
+    PetscCall( DMPlexDistribute( dm, 0, NULL, &dm_dist ) );
+    if( dm_dist )
+    {
+      PetscCall( DMDestroy( &dm ) );
+      dm = dm_dist;
+    }
+  }
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// dm の情報を出力する
+PetscErrorCode show_DM_info( const DM& dm )
+{
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // チャート範囲取得
+  PetscInt chart_start, chart_end;
+  PetscCall( DMPlexGetChart( dm, &chart_start, &chart_end ) );
+
+  // Height順に範囲を取得
+  std::vector<int> h_start(dim+1);
+  std::vector<int> h_end(dim+1);
+  for( int h=0; h<=dim; h++ )
+  {
+    PetscCall( DMPlexGetHeightStratum( dm, h, &(h_start[h]), &(h_end[h]) ) );
+  }
+
+  // Depth順に範囲を取得
+  std::vector<int> d_start(dim+1);
+  std::vector<int> d_end(dim+1);
+  for( int d=0; d<=dim; d++ )
+  {
+    PetscCall( DMPlexGetDepthStratum( dm, d, &(d_start[d]), &(d_end[d]) ) );
+  }
+
+  //+++
+  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d chart=[%5d,%5d)\n", rank, chart_start, chart_end );
+  for( int h=0; h<=dim; h++ )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d h%d=[%5d,%5d)\n", rank, h, h_start[h], h_end[h] );
+  }
+  for( int d=0; d<=dim; d++ )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d d%d=[%5d,%5d)\n", rank, d, d_start[d], d_end[d] );
+  }
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  //----
+
+  // 座標セクションから dof と off を取得 して出力
+  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-------- rank=%3d dof & off from csec\n", rank );
+  PetscSection loc_sec;
+  PetscCall( DMGetLocalSection( dm, &loc_sec ) );
+  Vec coords_loc = NULL;
+  PetscCall( DMGetCoordinatesLocal( dm, &coords_loc) );
+  PetscSection csec;
+  PetscCall( DMGetCoordinateSection( dm, &csec ) );
+  const PetscScalar *coords_loc_arr;
+  PetscCall( VecGetArrayRead( coords_loc, &coords_loc_arr ) );
+  for( int p=chart_start; p<chart_end; p++ )
+  {
+    PetscInt dof=0, off=0;
+    PetscCall( PetscSectionGetDof( csec, p, &dof ) );
+    PetscCall( PetscSectionGetOffset( csec, p, &off ) );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d p=%5d dof=%5d off=%5d\n", rank, p, dof, off );
+    for( int k=0; k<dof; k++ )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  rank=%3d %15.5e\n", rank, coords_loc_arr[off+k] );
+    }
+  }
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  PetscCall( VecRestoreArrayRead( coords_loc, &coords_loc_arr ) );
+
+  // セルのトランジティブクロージャの情報
+  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-------- rank=%3d transitive closure\n", rank );
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt npts = 0;
+    PetscInt* pts = NULL;
+    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d npts=%5d\n", rank, c, npts );
+    for( PetscInt k=0; k<npts; k++ )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  rank=%3d pts=%5d%5d\n", rank, pts[k*2+0], pts[k*2+1] );
+    }
+    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+  }
+
+  //---
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// nodesの設定
+PetscErrorCode set_nodes( DM& dm, node_vec& nodes )
+{
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // 範囲（セル）
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  std::set<int> added_p;
+
+  // セルでループ
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt npts = 0;
+    PetscInt* pts = NULL;
+    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+
+    // このセルのポイントでループ
+    for( PetscInt k=0; k<npts; k++ )
+    {
+      const PetscInt p = pts[2*k];
+      if( added_p.count( p ) ) continue;
+
+      std::vector<double> xy( 3, 0.0 );
+      bool bxy = false;
+      if( dim==3 && npts==27 ) bxy = hexl27::get_coords( dm, p, xy );
+
+      if( bxy )
+      {
+        nodes.create_new( p, xy[0], xy[1], xy[2] );
+        printf( "k=%5d p=%5d size=%5d\n", k, p, nodes.size() );
+        added_p.insert(p);
+      }
+    }
+    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+  }
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
