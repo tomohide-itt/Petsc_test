@@ -21,6 +21,7 @@ class elem
 {
 public:
     elem(){}
+    virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes ){}
 public:
     int id;
     int pid;
@@ -40,12 +41,16 @@ class elem_vec
 {
 public:
     elem_vec();
+    ~elem_vec();
+    template< class ETYPE > void create_new( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes );
+    const int size() const{ return m_elems.size(); }
 private:
     std::vector<elem*> m_elems;
-    int max_idx;
     std::map<int,int> m_pid2idx;
     std::map<int,int> m_idx2pid;
 };
+
+#include "elem.hpp"
 
 #endif
 

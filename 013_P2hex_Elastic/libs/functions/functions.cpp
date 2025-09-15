@@ -159,15 +159,58 @@ PetscErrorCode set_nodes( DM& dm, node_vec& nodes )
 
       std::vector<double> xy( 3, 0.0 );
       bool bxy = false;
+      if( dim==2 && npts== 7 ) bxy = trian6::get_coords( dm, p, xy );
       if( dim==3 && npts==27 ) bxy = hexl27::get_coords( dm, p, xy );
 
       if( bxy )
       {
         nodes.create_new( p, xy[0], xy[1], xy[2] );
-        printf( "k=%5d p=%5d size=%5d\n", k, p, nodes.size() );
         added_p.insert(p);
       }
     }
+    PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+  }
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// elemsの設定
+PetscErrorCode set_elems( DM& dm, node_vec& nodes, elem_vec& elems )
+{
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // 範囲（セル）
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  // セルでループ
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt npts = 0;
+    PetscInt* pts = NULL;
+    PetscCall( DMPlexGetTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
+
+    std::vector<int> nd_clos_ids;
+    // このセルのポイントでループ
+    for( PetscInt k=0; k<npts; k++ )
+    {
+      const PetscInt p = pts[2*k];
+      PetscInt depth;
+      PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
+      if( dim==2 && npts== 7 && depth == 2 ) continue; // pがセルなら飛ばす( trian6 のとき )
+
+      nd_clos_ids.push_back(p);
+    }
+
+    if( dim==2 && npts== 7 ) elems.create_new<trian6>( c, nd_clos_ids, nodes );
+    if( dim==3 && npts==27 ) elems.create_new<hexl27>( c, nd_clos_ids, nodes );
+
     PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
   }
   PetscFunctionReturn( PETSC_SUCCESS );

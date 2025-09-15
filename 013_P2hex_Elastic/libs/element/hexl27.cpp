@@ -1,5 +1,6 @@
 #include "hexl27.h"
 
+// pointID に対応する点の座標を計算する
 bool hexl27::get_coords( const DM& dm, const int p, std::vector<double>& xy )
 {
     PetscSection loc_sec;

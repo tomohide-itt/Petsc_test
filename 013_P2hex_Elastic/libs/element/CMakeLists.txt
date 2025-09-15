@@ -1,7 +1,7 @@
 set( LIB_NAME "element" )
 
-set( HDRS elem.h hexl27.h )
-set( SRCS elem.cpp hexl27.cpp )
+set( HDRS elem.h trian6.h hexl27.h )
+set( SRCS elem.cpp trian6.cpp hexl27.cpp )
 set( INCLS ${CMAKE_CURRENT_SOURCE_DIR} )
 
 add_library( ${LIB_NAME} STATIC ${HDRS} ${SRCS} )

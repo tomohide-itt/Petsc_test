@@ -9,8 +9,7 @@
 #include <petscdmplex.h>
 #include <petscksp.h>
 #include "node.h"
-#include "elem.h"
-#include "hexl27.h"
+#include "elems.h"
 
 PetscErrorCode read_gmsh( const std::string& mesh_path, DM &dm );
 
@@ -19,6 +18,8 @@ PetscErrorCode partition_mesh( DM &dm, DM &dm_dist );
 PetscErrorCode show_DM_info( const DM& dm );
 
 PetscErrorCode set_nodes( DM& dm, node_vec& nodes );
+
+PetscErrorCode set_elems( DM& dm, node_vec& nodes, elem_vec& elems );
 
 #endif
 
