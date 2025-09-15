@@ -4,20 +4,21 @@ node_vec::node_vec(){}
 
 node_vec::~node_vec()
 {
-    for( int n=0; n<this->size(); n++ ) delete m_nodes[n];
     //printf( "%s\n", __FUNCTION__ );
+    //for( int n=0; n<this->size(); n++ ) delete m_nodes[n];
 }
 
 void node_vec::create_new( const int p, const double x, const double y, const double z )
 {
-    node* pnd = new node( p, x, y, z );
+    //node* pnd = new node( p, x, y, z );
+    std::shared_ptr<node> pnd = std::make_shared<node>( p, x, y, z );
     int idx = m_nodes.size();
     m_nodes.push_back(pnd);
     m_pid2idx[p] = idx;
     m_idx2pid[idx] = p;
 }
 
-void node_vec::show()
+void node_vec::show() const
 {
     // rankの取得
     PetscMPIInt rank;

@@ -215,3 +215,71 @@ PetscErrorCode set_elems( DM& dm, node_vec& nodes, elem_vec& elems )
   }
   PetscFunctionReturn( PETSC_SUCCESS );
 }
+
+// ----------------------------------------------------------------------------
+// FE空間を作成する
+PetscErrorCode create_FE( const DM& dm, PetscFE& fe )
+{
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // 2次要素（P2）でdim成分ベクトル場（変位）に対する有限要素空間を作る
+  // 引数は，コミュニケータ，次元，フィールド成分数，要素形状がsimplexか，P1/P2, 積分次数，出力先の有限要素オブジェクト
+  PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, dim, PETSC_TRUE, 2, PETSC_DETERMINE, &fe ) );
+
+  // dm にフィールド0を登録
+  // 引数は，メッシュオブジェクト，フィールド番号，ラベル，そのフィールドに対応する有限要素オブジェクト
+  PetscCall( DMSetField( dm, 0, NULL, (PetscObject)fe ) );
+
+  // Discrete System (PetscDS) を dm から生成する （自由度構造の確定）
+  // 内部では，dmに紐づいた PetscSection を構築，PDE用のオブジェクト PetscDS を作成，各フィールドごとに PetscFE の情報を関連づけを行っている
+  PetscCall( DMCreateDS( dm ) );
+
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// Dマトリクスを計算する（線形弾性）
+PetscErrorCode cal_D_matrix( const DM& dm, const double E, const double nu, std::vector<PetscScalar>& D )
+{
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  double lamb = (E*nu)/((1.0+nu)*(1.0-2.0*nu));
+  double mu = E/(2.0*(1.0+nu));
+
+  std::vector<PetscScalar> delxdel;
+  std::vector<PetscScalar> idn;
+
+  int tens2_size = 4;
+  if( dim == 3 ) tens2_size = 6;
+
+  D.resize(       tens2_size * tens2_size );
+  delxdel.resize( tens2_size * tens2_size );
+  idn.resize(     tens2_size * tens2_size );
+
+  for( int i=0; i<D.size(); i++ ) D[i] = 0.0;
+  for( int i=0; i<delxdel.size(); i++ ) delxdel[i] = 0.0;
+  for( int i=0; i<idn.size(); i++ ) idn[i] = 0.0;
+
+  for( int i=0; i<3; i++ ){
+    for( int j=0; j<3; j++ )
+    {
+      delxdel[i*tens2_size+j] = 1.0;
+    }
+  }
+
+  for( int i=0; i<3; i++ ) idn[i*tens2_size+i] = 1.0;
+  for( int i=3; i<tens2_size; i++ ) idn[i*tens2_size+i] = 0.5;
+
+  for( int i=0; i<tens2_size; i++ )
+  {
+    for( int j=0; j<tens2_size; j++ )
+    {
+      D[i*tens2_size+j] = lamb*delxdel[i*tens2_size+j] + 2.0*mu*idn[i*tens2_size+j];
+    }
+  }
+  PetscFunctionReturn( PETSC_SUCCESS );
+}

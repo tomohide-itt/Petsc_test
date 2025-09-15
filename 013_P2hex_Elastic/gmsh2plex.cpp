@@ -8,6 +8,7 @@
 #include <petscdmplex.h>
 #include <petscksp.h>
 #include "functions.h"
+#include "gmsh.h"
 
 int main(int argc,char **argv)
 {
@@ -54,11 +55,10 @@ int main(int argc,char **argv)
   PetscCall( set_nodes( dm, nodes ) );
   nodes.show();
 
-/*
   //=== 要素の設定 ==============================================================================
   elem_vec elems;
   PetscCall( set_elems( dm, nodes, elems ) );
-  //elems.show();
+  elems.show();
 
   //=== tag - id - pid の関係を得る ==============================================================================
   std::map<int,int> ntag2gnid, gnid2ntag;
@@ -82,9 +82,9 @@ int main(int argc,char **argv)
   //=== 材料定数, Dマトリクス計算 ==============================================================================
   double E = 1.0e3;
   double nu = 0.33;
-  PetscScalar D[16];
-  PetscCall( cal_D_matrix( E, nu, D ) );
-
+  std::vector<PetscScalar> D;
+  PetscCall( cal_D_matrix( dm, E, nu, D ) );
+/*
   //=== Kuuマトリクスをマージ ==============================================================================
   PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 

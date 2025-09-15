@@ -7,6 +7,7 @@
 #include <math.h>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <petscdmplex.h>
 #include <petscksp.h>
 #include "node.h"
@@ -21,7 +22,8 @@ class elem
 {
 public:
     elem(){}
-    virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes ){}
+    virtual ~elem() = default;
+    virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ){}
 public:
     int id;
     int pid;
@@ -30,22 +32,24 @@ public:
     int dim;
     int num_gp;
     std::vector<int> node_pids;
-    std::vector<node*> nod;
+    std::vector<std::shared_ptr<node>> nod;
     std::vector<int> perm;
 
-    std::array<double,4> gp_pos;
-    std::array<double,2> gp_wei;
+    //std::array<double,4> gp_pos;
+    //std::array<double,2> gp_wei;
+    std::vector<double> gp_pos;
+    std::vector<double> gp_wei;
 };
 
 class elem_vec
 {
 public:
     elem_vec();
-    ~elem_vec();
-    template< class ETYPE > void create_new( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes );
+    template< class ETYPE > void create_new( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes );
     const int size() const{ return m_elems.size(); }
+    void show() const;
 private:
-    std::vector<elem*> m_elems;
+    std::vector<std::shared_ptr<elem>> m_elems;
     std::map<int,int> m_pid2idx;
     std::map<int,int> m_idx2pid;
 };

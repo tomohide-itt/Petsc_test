@@ -1,7 +1,7 @@
 #include "trian6.h"
 
 // 初期化
-void trian6::initialize( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes )
+void trian6::initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes )
 {
     this->pid = p;
     this->dim = 2;
@@ -23,11 +23,13 @@ void trian6::initialize( const int p, const std::vector<int>& nd_clos_ids, const
         nod[i] = nodes.pid_is(node_pids[i]);
     }
     // 積分点位置
+    gp_pos.resize(4);
     gp_pos[0] = 0.816847572980459;
     gp_pos[1] = 0.091576213509771;
     gp_pos[2] = 0.108103018168070;
     gp_pos[3] = 0.445948490915965;
     // 積分点重み
+    gp_wei.resize(2);
     gp_wei[0] = 0.109951743655322;
     gp_wei[1] = 0.223381589678011;
 }

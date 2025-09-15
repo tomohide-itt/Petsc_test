@@ -7,6 +7,7 @@
 #include <math.h>
 #include <iomanip>
 #include <map>
+#include <memory>
 #include <petscdmplex.h>
 #include <petscksp.h>
 
@@ -32,11 +33,12 @@ public:
     ~node_vec();
     void create_new( const int p, const double x, const double y, const double z );
     const int size() const{ return m_nodes.size(); }
-    const node* pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }
-    node* pid_is( const int pid ){ return m_nodes[m_pid2idx.at(pid)]; }
-    void show();
+    //const node* pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }
+    //node* pid_is( const int pid ){ return m_nodes[m_pid2idx.at(pid)]; }
+    const std::shared_ptr<node> pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }
+    void show() const;
 private:
-    std::vector<node*> m_nodes;
+    std::vector<std::shared_ptr<node>> m_nodes;
     std::map<int,int> m_pid2idx;
     std::map<int,int> m_idx2pid;
 };

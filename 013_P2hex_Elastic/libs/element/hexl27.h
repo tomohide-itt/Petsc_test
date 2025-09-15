@@ -15,6 +15,7 @@ class hexl27 : public elem
 {
 public:
     hexl27() : elem(){}
+    void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ) override;
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
 };
 

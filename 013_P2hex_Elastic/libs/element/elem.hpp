@@ -4,9 +4,9 @@
 #include "elem.h"
 
 template< class ETYPE >
-void elem_vec::create_new( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes )
+void elem_vec::create_new( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes )
 {
-    elem* pel = new ETYPE;
+    std::shared_ptr<elem> pel = std::make_shared<ETYPE>();
     pel->initialize( p, nd_clos_ids, nodes );
     int idx = m_elems.size();
     m_elems.push_back(pel);

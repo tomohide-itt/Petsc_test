@@ -1,5 +1,5 @@
 #include "gmsh.h"
-#include "elem.h"
+#include "elems.h"
 #include "functions.h"
 
 //==========================================================================================
@@ -86,6 +86,16 @@ void gmsh::read_elems( const std::string& mesh_path, elem_vec &elems )
       }
       find = true;
     }
+    else if( elem_type==12 ) // 27節点6面体要素
+    {
+      for( int i=0; i<27; i++ )
+      {
+        int ntag=0;
+        fmsh >> ntag;
+        node_tags.push_back( ntag );
+      }
+      find = true;
+    }
 
     if( !find )
     {
@@ -144,14 +154,16 @@ PetscErrorCode get_elem_tag_local_pid_map( const DM& dm, const gmsh::node_vec& n
     for( PetscInt k=0; k<npts; k++ )
     {
       const PetscInt p = pts[2*k];
-      PetscInt depth;
-      PetscCall( DMPlexGetPointDepth( dm, p, &depth ) );
-      if( depth == 2 ) continue; // pがセルなら飛ばす
 
       std::vector<double> xy;
-      PetscCall( get_coords( dm, p, xy ) );
-      xye.push_back( xy );
-      pe.push_back( p );
+      bool bxy = false;
+      if( dim==2 && npts== 7 ) bxy = trian6::get_coords( dm, p, xy );
+      if( dim==3 && npts==27 ) bxy = hexl27::get_coords( dm, p, xy );
+      if( bxy )
+      {
+        xye.push_back( xy );
+        pe.push_back( p );
+      }
     }
 
     int num_nods = xye.size();
@@ -166,7 +178,6 @@ PetscErrorCode get_elem_tag_local_pid_map( const DM& dm, const gmsh::node_vec& n
       }
     }
     //---
-
     // gelemsと突き合わせて，全ての座標が一致しているかチェックし，そのtagとcのマップを登録する
     double tol = 1.0e-8;
 
@@ -193,6 +204,10 @@ PetscErrorCode get_elem_tag_local_pid_map( const DM& dm, const gmsh::node_vec& n
           if( dim == 2 )
           {
             same = same && close2( nd.xy[0], xye[i][0], tol ) && close2( nd.xy[1], xye[i][1], tol );
+          }
+          else if( dim == 3 )
+          {
+            same = same && close2( nd.xy[0], xye[i][0], tol ) && close2( nd.xy[1], xye[i][1], tol ) && close2( nd.xy[2], xye[i][2], tol );
           }
           if( same )
           {
@@ -239,6 +254,18 @@ PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
   ntag2gnid = nodes.tag2idx;
   gnid2ntag = nodes.idx2tag;
 
+  //+++
+  if( rank == 0 )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag2gnid\n" );
+    for( const auto& [ntag,gnid] : ntag2gnid )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag=%5d gnid=%5d\n", ntag, gnid );
+    }
+  }
+  //---
+
   //要素読込
   gmsh::elem_vec elems;
   gmsh::read_elems( mesh_path, elems );
@@ -246,44 +273,36 @@ PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
   geid2etag = elems.idx2tag;
 
   //+++
-  //if( rank == 0 )
-  //{
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag2gnid\n" );
-  //  for( const auto& [ntag,gnid] : ntag2gnid )
-  //  {
-  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag=%5d gnid=%5d\n", ntag, gnid );
-  //  }
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag2geid\n" );
-  //  for( const auto& [etag,geid] : etag2geid )
-  //  {
-  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag=%5d geid=%5d\n", etag, geid );
-  //  }
-  //}
+  if( rank == 0 )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag2geid\n" );
+    for( const auto& [etag,geid] : etag2geid )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag=%5d geid=%5d\n", etag, geid );
+    }
+  }
   //---
-
-  //std::map<int,int> etag2lpid, lpid2etag, ntag2lpid, lpid2ntag;
   PetscCall( get_elem_tag_local_pid_map( dm, nodes, elems, etag2lpid, lpid2etag, ntag2lpid, lpid2ntag, false ) );
 
   //+++
-  //{
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //  for( const auto& [lpid, ntag] : lpid2ntag )
-  //  {
-  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d ntag=%5d\n", rank, lpid, ntag );
-  //  }
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //  for( const auto& [ntag, lpid] : ntag2lpid )
-  //  {
-  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d ntag=%5d lpid=%5d\n", rank, ntag, lpid );
-  //  }
-  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //  for( const auto& [lpid, etag] : lpid2etag )
-  //  {
-  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d etag=%5d\n", rank, lpid, etag );
-  //  }
-  //}
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    for( const auto& [lpid, ntag] : lpid2ntag )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d ntag=%5d\n", rank, lpid, ntag );
+    }
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    for( const auto& [ntag, lpid] : ntag2lpid )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d ntag=%5d lpid=%5d\n", rank, ntag, lpid );
+    }
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    for( const auto& [lpid, etag] : lpid2etag )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d etag=%5d\n", rank, lpid, etag );
+    }
+  }
   //---
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );

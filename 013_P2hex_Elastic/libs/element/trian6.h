@@ -15,7 +15,8 @@ class trian6 : public elem
 {
 public:
     trian6() : elem(){}
-    void initialize( const int p, const std::vector<int>& nd_clos_ids, const node_vec& nodes ) override;
+    ~trian6() override = default;
+    void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ) override;
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
 private:
     static void get_coords_vertex( const DM& dm, const int p, std::vector<double>& xy );
