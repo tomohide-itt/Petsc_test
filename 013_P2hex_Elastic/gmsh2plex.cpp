@@ -48,7 +48,7 @@ int main(int argc,char **argv)
   PetscCall( partition_mesh( dm, dm_dist ) );
 
   //=== DM の情報を出力
-//  PetscCall( show_DM_info( dm ) );
+  PetscCall( show_DM_info( dm ) );
 
   //=== 節点の設定 ==============================================================================
   node_vec nodes;

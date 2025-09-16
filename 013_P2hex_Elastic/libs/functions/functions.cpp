@@ -83,15 +83,16 @@ PetscErrorCode show_DM_info( const DM& dm )
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   //----
 
+  /*
   // 座標セクションから dof と off を取得 して出力
   PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-------- rank=%3d dof & off from csec\n", rank );
-  PetscSection loc_sec;
+  PetscSection loc_sec = NULL;
   PetscCall( DMGetLocalSection( dm, &loc_sec ) );
   Vec coords_loc = NULL;
   PetscCall( DMGetCoordinatesLocal( dm, &coords_loc) );
-  PetscSection csec;
+  PetscSection csec = NULL;
   PetscCall( DMGetCoordinateSection( dm, &csec ) );
-  const PetscScalar *coords_loc_arr;
+  const PetscScalar *coords_loc_arr = NULL;
   PetscCall( VecGetArrayRead( coords_loc, &coords_loc_arr ) );
   for( int p=chart_start; p<chart_end; p++ )
   {
@@ -106,6 +107,7 @@ PetscErrorCode show_DM_info( const DM& dm )
   }
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscCall( VecRestoreArrayRead( coords_loc, &coords_loc_arr ) );
+  */
 
   // セルのトランジティブクロージャの情報
   PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-------- rank=%3d transitive closure\n", rank );
@@ -228,7 +230,7 @@ PetscErrorCode create_FE( DM dm, PetscFE& fe )
 
   // 2次要素（P2）でdim成分ベクトル場（変位）に対する有限要素空間を作る
   // 引数は，コミュニケータ，次元，フィールド成分数，要素形状がsimplexか，P1/P2, 積分次数，出力先の有限要素オブジェクト
-  PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, dim, PETSC_FALSE, 2, PETSC_DETERMINE, &fe ) );
+  PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, dim, PETSC_TRUE, 2, PETSC_DETERMINE, &fe ) );
 
   // dm にフィールド0を登録
   // 引数は，メッシュオブジェクト，フィールド番号，ラベル，そのフィールドに対応する有限要素オブジェクト
@@ -240,84 +242,46 @@ PetscErrorCode create_FE( DM dm, PetscFE& fe )
   PetscCall( DMCreateDS( dm ) );
 
   // --- ここからがポイント：FE の numDof から Section を明示生成 ---
-  PetscDS ds = NULL; PetscCall(DMGetDS(dm, &ds));
-PetscFE fe0 = NULL; PetscCall(PetscDSGetDiscretization(ds, 0, (PetscObject*)&fe0));
+  PetscDS ds = NULL;
+  PetscCall( DMGetDS( dm, &ds ) );
+  PetscFE fe0 = NULL;
+  PetscCall( PetscDSGetDiscretization( ds, 0, (PetscObject*)&fe0 ) );
 
-const PetscInt *feNumDof = NULL;     // ← {3,3,3,3} が入っている（Nc込み）
-PetscCall(PetscFEGetNumDof(fe0, &feNumDof));
+  const PetscInt *feNumDof = NULL;     // ← {3,3,3,3} が入っている（Nc込み）
+  PetscCall( PetscFEGetNumDof( fe0, &feNumDof ) );
 
-PetscInt Nc = 0, dimMesh = 0;
-PetscCall(PetscFEGetNumComponents(fe0, &Nc));  // ここは 3 のはず
-PetscCall(DMGetDimension(dm, &dimMesh));       // 3
+  PetscInt Nc = 0, dimMesh = 0;
+  PetscCall( PetscFEGetNumComponents( fe0, &Nc ) );  // ここは 3 のはず
+  PetscCall( DMGetDimension( dm, &dimMesh ) );       // 3
 
-// DMPlexCreateSection へ渡す配列を組む（※Ncで割らない！）
-PetscInt numComp[1]   = { Nc };                // =3
-PetscInt numDofFlat[4];
-for (PetscInt d=0; d<=dimMesh; ++d) numDofFlat[d] = feNumDof[d];  // {3,3,3,3}
+  // DMPlexCreateSection へ渡す配列を組む（※Ncで割らない！）
+  PetscInt numComp[1]   = { Nc };                // =3
+  PetscInt numDofFlat[4];
+  for (PetscInt d=0; d<=dimMesh; ++d) numDofFlat[d] = feNumDof[d];  // {3,3,3,3}
 
-PetscSection sec = NULL;
-PetscCall(DMPlexCreateSection(dm,
-                              /*labels*/   NULL,
-                              /*numComp*/  numComp,     // Nc
-                              /*numDof*/   numDofFlat,  // {3,3,3,3}（Nc込み）
-                              /*numBC*/    0,
-                              /*bcFields*/ NULL,
-                              /*bcPoints*/ NULL,
-                              /*bcComps*/  NULL,
-                              /*perm*/     NULL,
-                              &sec));
-PetscCall(DMSetLocalSection(dm, sec));
-PetscCall(PetscSectionDestroy(&sec));
+  PetscSection sec = NULL;
+  // args: dm, labels, numComp, numDof, numBC, bcields, bcPoints, bcComps, perm, sec
+  PetscCall( DMPlexCreateSection( dm, NULL, numComp, numDofFlat, 0, NULL, NULL, NULL, NULL, &sec ) );
+  PetscCall( DMSetLocalSection( dm, sec ) );
+  PetscCall( PetscSectionDestroy( &sec ) );
 // -- ここまで
 
   // --- 検証: 本当に Section が張られたか ---
-  /*
-  PetscDS ds=NULL; PetscInt nf=0;
-PetscCall(DMGetDS(dm, &ds));
-PetscCall(PetscDSGetNumFields(ds, &nf));
-PetscPrintf(PETSC_COMM_WORLD, "DS num fields = %" PetscInt_FMT "\n", nf);
+  PetscSection loc=NULL;
+  PetscCall(DMGetLocalSection(dm,&loc));
 
-// depthごとの点数と DoF 合計
-PetscSection loc=NULL; PetscCall(DMGetLocalSection(dm, &loc));
-PetscInt vS,vE,eS,eE,fS,fE,cS,cE;
-PetscCall(DMPlexGetDepthStratum(dm,0,&vS,&vE));
-PetscCall(DMPlexGetDepthStratum(dm,1,&eS,&eE));
-PetscCall(DMPlexGetDepthStratum(dm,2,&fS,&fE));
-PetscCall(DMPlexGetHeightStratum(dm,0,&cS,&cE)); // cells
-auto sumdof=[&](PetscInt s,PetscInt e){
-  PetscInt ssum=0; for(PetscInt p=s;p<e;++p){PetscInt d=0;PetscSectionGetDof(loc,p,&d); ssum+=d;} return ssum;
-};
-PetscPrintf(PETSC_COMM_WORLD,
-  "counts: V=%" PetscInt_FMT " E=%" PetscInt_FMT " F=%" PetscInt_FMT " C=%" PetscInt_FMT "\n",
-  vE-vS, eE-eS, fE-fS, cE-cS);
-PetscPrintf(PETSC_COMM_WORLD,
-  "dofs:   V=%" PetscInt_FMT " E=%" PetscInt_FMT " F=%" PetscInt_FMT " C=%" PetscInt_FMT "\n",
-  sumdof(vS,vE), sumdof(eS,eE), sumdof(fS,fE), sumdof(cS,cE));
-  */
- /*
- PetscDS ds=NULL; PetscCall(DMGetDS(dm, &ds));
-PetscFE fe0=NULL; PetscCall(PetscDSGetDiscretization(ds, 0, (PetscObject*)&fe0));
-const PetscInt *numDof=NULL; PetscCall(PetscFEGetNumDof(fe0, &numDof));
-PetscPrintf(PETSC_COMM_WORLD,
-  "FE numDof by topodim: d0=%" PetscInt_FMT " d1=%" PetscInt_FMT
-  " d2=%" PetscInt_FMT " d3=%" PetscInt_FMT "\n",
-  numDof[0], numDof[1], numDof[2], numDof[3]);
-  */
- PetscSection loc=NULL;
-PetscCall(DMGetLocalSection(dm,&loc));
+  PetscInt vS,vE,eS,eE,fS,fE,cS,cE;
+  PetscCall(DMPlexGetDepthStratum(dm,0,&vS,&vE));
+  PetscCall(DMPlexGetDepthStratum(dm,1,&eS,&eE));
+  PetscCall(DMPlexGetDepthStratum(dm,2,&fS,&fE));
+  PetscCall(DMPlexGetHeightStratum(dm,0,&cS,&cE));
 
-PetscInt vS,vE,eS,eE,fS,fE,cS,cE;
-PetscCall(DMPlexGetDepthStratum(dm,0,&vS,&vE));
-PetscCall(DMPlexGetDepthStratum(dm,1,&eS,&eE));
-PetscCall(DMPlexGetDepthStratum(dm,2,&fS,&fE));
-PetscCall(DMPlexGetHeightStratum(dm,0,&cS,&cE));
-
-PetscInt sumV=0,sumE=0,sumF=0,sumC=0,dof=0;
-for (PetscInt p=vS;p<vE;++p){PetscSectionGetDof(loc,p,&dof); sumV+=dof;}
-for (PetscInt p=eS;p<eE;++p){PetscSectionGetDof(loc,p,&dof); sumE+=dof;}
-for (PetscInt p=fS;p<fE;++p){PetscSectionGetDof(loc,p,&dof); sumF+=dof;}
-for (PetscInt p=cS;p<cE;++p){PetscSectionGetDof(loc,p,&dof); sumC+=dof;}
-PetscPrintf(PETSC_COMM_WORLD,"dofs(Local): V=%" PetscInt_FMT " E=%" PetscInt_FMT
+  PetscInt sumV=0,sumE=0,sumF=0,sumC=0,dof=0;
+  for (PetscInt p=vS;p<vE;++p){PetscSectionGetDof(loc,p,&dof); sumV+=dof;}
+  for (PetscInt p=eS;p<eE;++p){PetscSectionGetDof(loc,p,&dof); sumE+=dof;}
+  for (PetscInt p=fS;p<fE;++p){PetscSectionGetDof(loc,p,&dof); sumF+=dof;}
+  for (PetscInt p=cS;p<cE;++p){PetscSectionGetDof(loc,p,&dof); sumC+=dof;}
+  PetscPrintf(PETSC_COMM_WORLD,"dofs(Local): V=%" PetscInt_FMT " E=%" PetscInt_FMT
             " F=%" PetscInt_FMT " C=%" PetscInt_FMT "\n",sumV,sumE,sumF,sumC);
 
   PetscFunctionReturn( PETSC_SUCCESS );
