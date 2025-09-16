@@ -24,6 +24,7 @@ public:
     elem(){}
     virtual ~elem() = default;
     virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ){}
+    virtual void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const{}
 public:
     int id;
     int pid;
@@ -35,8 +36,6 @@ public:
     std::vector<std::shared_ptr<node>> nod;
     std::vector<int> perm;
 
-    //std::array<double,4> gp_pos;
-    //std::array<double,2> gp_wei;
     std::vector<double> gp_pos;
     std::vector<double> gp_wei;
 };
@@ -47,6 +46,7 @@ public:
     elem_vec();
     template< class ETYPE > void create_new( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes );
     const int size() const{ return m_elems.size(); }
+    const std::shared_ptr<elem> pid_is( const int pid ) const{ return m_elems[m_pid2idx.at(pid)]; }
     void show() const;
 private:
     std::vector<std::shared_ptr<elem>> m_elems;

@@ -48,7 +48,7 @@ int main(int argc,char **argv)
   PetscCall( partition_mesh( dm, dm_dist ) );
 
   //=== DM の情報を出力
-  PetscCall( show_DM_info( dm ) );
+//  PetscCall( show_DM_info( dm ) );
 
   //=== 節点の設定 ==============================================================================
   node_vec nodes;
@@ -84,10 +84,10 @@ int main(int argc,char **argv)
   double nu = 0.33;
   std::vector<PetscScalar> D;
   PetscCall( cal_D_matrix( dm, E, nu, D ) );
-/*
-  //=== Kuuマトリクスをマージ ==============================================================================
-  PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
+  //=== Kuuマトリクスをマージ ==============================================================================
+  PetscCall( merge_Kuu_matrix( dm, D, elems, A, true ) );
+/*
   //=== 節点力 ==============================================================================
   PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
 
@@ -108,12 +108,11 @@ int main(int argc,char **argv)
 
   //=== vtk ファイルの出力 ==============================================================================
   output_vtk( vtk_path, nodes, elems, lpid2ntag );
-
+*/
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );
   PetscCall( MatDestroy( &A ) );
   PetscCall( PetscFEDestroy( &fe ) );
-*/
   PetscCall( DMDestroy( &dm ) );
   PetscCall( DMDestroy( &dm_dist ) );
   PetscCall( PetscFinalize() );

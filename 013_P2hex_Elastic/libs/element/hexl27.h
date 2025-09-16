@@ -17,7 +17,7 @@ public:
     hexl27() : elem(){}
     void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ) override;
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
-
+    void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const override;
 private:
     std::array<double,81> get_xye() const;
     std::array<double,81> dNdr_at( const int ng ) const;
@@ -26,8 +26,10 @@ private:
     std::array<double,9> J_I_T_at( const int ng ) const;
     std::array<double,81> derivN_at( const int ng ) const;
     double fac_at( const int ng ) const;
-    std::array<double,486> B_matrix_at( const int ng ) const; //6x27
+    std::array<double,486> B_matrix_at( const int ng ) const;
     std::array<double,486> BVOL_matrix_at( const int ng ) const;
+    std::array<double,729> Kuu_matrix( const std::vector<double>& D ) const;
+    void permutate_Kuu_matrix( std::array<double,729>& Kuu ) const;
 };
 
 #endif

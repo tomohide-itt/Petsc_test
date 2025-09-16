@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <petscdmplex.h>
 #include <petscksp.h>
+#include <petscds.h>  
 #include "node.h"
 #include "elems.h"
 
@@ -21,9 +22,11 @@ PetscErrorCode set_nodes( DM& dm, node_vec& nodes );
 
 PetscErrorCode set_elems( DM& dm, node_vec& nodes, elem_vec& elems );
 
-PetscErrorCode create_FE( const DM& dm, PetscFE& fe );
+PetscErrorCode create_FE( DM dm, PetscFE& fe );
 
 PetscErrorCode cal_D_matrix( const DM& dm, const double E, const double nu, std::vector<PetscScalar>& D );
+
+PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D, const elem_vec& elems, Mat& A, const bool debug=false );
 
 #endif
 

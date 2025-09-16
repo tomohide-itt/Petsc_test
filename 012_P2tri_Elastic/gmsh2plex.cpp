@@ -85,7 +85,7 @@ int main(int argc,char **argv)
   PetscCall( cal_D_matrix( E, nu, D ) );
 
   //=== Kuuマトリクスをマージ ==============================================================================
-  PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
+  PetscCall( merge_Kuu_matrix( dm, D, elems, A, true ) );
 
   //=== 節点力 ==============================================================================
   PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
