@@ -240,43 +240,31 @@ PetscErrorCode create_FE( DM dm, PetscFE& fe )
   PetscCall( DMCreateDS( dm ) );
 
   // --- ここからがポイント：FE の numDof から Section を明示生成 ---
-  PetscDS ds = NULL;
-PetscCall(DMGetDS(dm, &ds));
+  PetscDS ds = NULL; PetscCall(DMGetDS(dm, &ds));
+PetscFE fe0 = NULL; PetscCall(PetscDSGetDiscretization(ds, 0, (PetscObject*)&fe0));
 
-PetscFE fe0 = NULL;
-PetscCall(PetscDSGetDiscretization(ds, 0, (PetscObject*)&fe0));
-
-// FE が持つ「各トポ次元の基底個数」を取得（ベクトル成分を含む可能性あり）
-const PetscInt *feNumDof = NULL;
+const PetscInt *feNumDof = NULL;     // ← {3,3,3,3} が入っている（Nc込み）
 PetscCall(PetscFEGetNumDof(fe0, &feNumDof));
 
 PetscInt Nc = 0, dimMesh = 0;
-PetscCall(PetscFEGetNumComponents(fe0, &Nc));   // 例: 3
-PetscCall(DMGetDimension(dm, &dimMesh));        // 例: 3
+PetscCall(PetscFEGetNumComponents(fe0, &Nc));  // ここは 3 のはず
+PetscCall(DMGetDimension(dm, &dimMesh));       // 3
 
-// DMPlexCreateSection に渡す配列を用意
-PetscInt numFields = 1;
-PetscInt numComp[1] = { Nc };                   // フィールド0の成分数 = Nc
+// DMPlexCreateSection へ渡す配列を組む（※Ncで割らない！）
+PetscInt numComp[1]   = { Nc };                // =3
+PetscInt numDofFlat[4];
+for (PetscInt d=0; d<=dimMesh; ++d) numDofFlat[d] = feNumDof[d];  // {3,3,3,3}
 
-// feNumDof は Nc を含んでいることがあるのでスカラーに正規化
-PetscInt numDofFlat[ (/*numFields*/1) * (/*dim+1*/4) ];
-for (PetscInt d = 0; d <= dimMesh; ++d) {
-  PetscInt v = feNumDof[d];
-  if (Nc > 0 && v % Nc == 0) v /= Nc;          // 3,3,3,3 → 1,1,1,1 に
-  numDofFlat[d] = v;                           // フィールド0ぶん（フラット配列）
-}
-
-// Section を明示生成してセット（境界条件なし）
 PetscSection sec = NULL;
 PetscCall(DMPlexCreateSection(dm,
-                              /*labels*/ NULL,
-                              /*numComp*/ numComp,
-                              /*numDof*/  numDofFlat,
-                              /*numBC*/   0,
-                              /*bcFields*/NULL,
-                              /*bcPoints*/NULL,
-                              /*bcComps*/ NULL,
-                              /*perm*/    NULL,
+                              /*labels*/   NULL,
+                              /*numComp*/  numComp,     // Nc
+                              /*numDof*/   numDofFlat,  // {3,3,3,3}（Nc込み）
+                              /*numBC*/    0,
+                              /*bcFields*/ NULL,
+                              /*bcPoints*/ NULL,
+                              /*bcComps*/  NULL,
+                              /*perm*/     NULL,
                               &sec));
 PetscCall(DMSetLocalSection(dm, sec));
 PetscCall(PetscSectionDestroy(&sec));
