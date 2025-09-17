@@ -69,7 +69,7 @@ int main(int argc,char **argv)
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
-  create_FE( dm, fe );
+  create_FE( dm, true );
 
   //=== 係数行列，右辺ベクトルの作成 ==============================================================================
   Mat A;
@@ -87,10 +87,11 @@ int main(int argc,char **argv)
 
   //=== Kuuマトリクスをマージ ==============================================================================
   PetscCall( merge_Kuu_matrix( dm, D, elems, A, true ) );
-/*
-  //=== 節点力 ==============================================================================
-  PetscCall( set_nodal_force( dm, fe, 2, -10, 1, b ) );
 
+  //=== 節点力 ==============================================================================
+  //PetscCall( set_nodal_force( dm, 2, -10, 1, b ) );
+  PetscCall( set_nodal_force( dm, 6, -10, 2, b ) );
+/*
   //=== Dirichlet境界条件 ==============================================================================
   PetscCall( set_Dirichlet_zero( dm, 4, A, b ) );
 
@@ -112,7 +113,6 @@ int main(int argc,char **argv)
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );
   PetscCall( MatDestroy( &A ) );
-  PetscCall( PetscFEDestroy( &fe ) );
   PetscCall( DMDestroy( &dm ) );
   PetscCall( DMDestroy( &dm_dist ) );
   PetscCall( PetscFinalize() );

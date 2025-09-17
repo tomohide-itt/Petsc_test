@@ -28,8 +28,8 @@ private:
     double fac_at( const int ng ) const;
     std::array<double,486> B_matrix_at( const int ng ) const;
     std::array<double,486> BVOL_matrix_at( const int ng ) const;
-    std::array<double,729> Kuu_matrix( const std::vector<double>& D ) const;
-    void permutate_Kuu_matrix( std::array<double,729>& Kuu ) const;
+    std::array<double,6561> Kuu_matrix( const std::vector<double>& D ) const;
+    void permutate_Kuu_matrix( std::array<double,6561>& Kuu ) const;
 };
 
 #endif

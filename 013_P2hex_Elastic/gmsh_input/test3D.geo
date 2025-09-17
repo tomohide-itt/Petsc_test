@@ -50,18 +50,6 @@ Physical Surface( "front", 4 ) = {4};
 Physical Surface( "bottom", 5 ) = {5};
 Physical Surface( "top", 6 ) = {6};
 //
-//Physical Point("ngbc 1 1 1 0 0 0.0 0.0 0.0 0.0 0.0") = {1, 2, 3, 4};
-//Physical Curve("ngbc 1 1 1 0 0 0.0 0.0 0.0 0.0 0.0") = {1, 2, 3, 4};
-//Physical Surface("ngbc 1 1 1 0 0 0.0 0.0 0.0 0.0 0.0") = {5};
-//Physical Point("nlbc 1 0.0 0.0 -0.1 0.0") = {5, 6, 7, 8};
-//Physical Curve("nlbc 1 0.0 0.0 -0.2 0.0") = {6, 8, 10, 11};
-//Physical Surface("nlbc 1 0.0 0.0 -0.4 0.0") = {6};
-//
-//Physical Volume("gp_order 3") = {1};
-//Physical Volume("matdef 0 0 0 10000.0 5000.0 1.0 2.65") = {1};
-//Physical Volume("mat 0") = {1};
-//Physical Volume("all") = {1};
-//
 Transfinite Line "*" = 1 Using Bump 1.0;
 Transfinite Surface "*";
 Recombine Surface "*";

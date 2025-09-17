@@ -274,7 +274,7 @@ double hexl27::fac_at( const int ng ) const
     return gp_wei[ig] * gp_wei[jg] * gp_wei[kg] * detJ;
 }
 
-// Bマトリクスの計算 (6x27)
+// Bマトリクスの計算 (6x81)
 std::array<double,486> hexl27::B_matrix_at( const int ng ) const
 {
     std::array<double,81> derivN = derivN_at( ng );
@@ -295,7 +295,7 @@ std::array<double,486> hexl27::B_matrix_at( const int ng ) const
     return B;
 }
 
-// BVOLマトリクスの計算 (6x27)
+// BVOLマトリクスの計算 (6x81)
 std::array<double,486> hexl27::BVOL_matrix_at( const int ng ) const
 {
     std::array<double,486> BVOL = B_matrix_at( ng );
@@ -304,38 +304,38 @@ std::array<double,486> hexl27::BVOL_matrix_at( const int ng ) const
     return BVOL;
 }
 
-// Kuuマトリクスの計算 (27x27)
-std::array<double,729> hexl27::Kuu_matrix( const std::vector<double>& D ) const
+// Kuuマトリクスの計算 (81x81)
+std::array<double,6561> hexl27::Kuu_matrix( const std::vector<double>& D ) const
 {
-    std::array<double,729> Kuu;
-    for( int i=0; i<729; i++ ) Kuu[i] = 0.0;
+    std::array<double,6561> Kuu;
+    for( int i=0; i<6561; i++ ) Kuu[i] = 0.0;
     for( int ng=0; ng<num_gp; ng++ )
     {
         std::array<double,486> B = B_matrix_at( ng );
         std::array<double,486> BVOL = BVOL_matrix_at( ng );
 
         std::array<double,486> BTD;
-        for( int i=0; i<27; i++ )
+        for( int i=0; i<81; i++ )
         {
             for( int j=0; j<6; j++ )
             {
                 BTD[i*6+j] = 0.0;
                 for( int k=0; k<6; k++ )
                 {
-                    if( k < 3  ) BTD[i*6+j] += B[k*27+i]*D[k*6+j];
-                    else         BTD[i*6+j] += 2.0*B[k*27+i]*D[k*6+j];
+                    if( k < 3  ) BTD[i*6+j] += B[k*81+i]*D[k*6+j];
+                    else         BTD[i*6+j] += 2.0*B[k*81+i]*D[k*6+j];
                 }
             }
         }
 
-        for( int i=0; i<27; i++ )
+        for( int i=0; i<81; i++ )
         {
-            for( int j=0; j<27; j++ )
+            for( int j=0; j<81; j++ )
             {
                 for( int k=0; k<6; k++ )
                 {
-                    if( k <  3 ) Kuu[i*27+j] += BTD[i*6+k]*BVOL[k*27+j];
-                    else         Kuu[i*27+j] += 2.0*BTD[i*6+k]*BVOL[k*27+j];
+                    if( k <  3 ) Kuu[i*81+j] += BTD[i*6+k]*BVOL[k*81+j];
+                    else         Kuu[i*81+j] += 2.0*BTD[i*6+k]*BVOL[k*81+j];
                 }
             }
         }
@@ -343,10 +343,10 @@ std::array<double,729> hexl27::Kuu_matrix( const std::vector<double>& D ) const
     return Kuu;
 }
 
-void hexl27::permutate_Kuu_matrix( std::array<double,729>& Kuu ) const
+void hexl27::permutate_Kuu_matrix( std::array<double,6561>& Kuu ) const
 {
-    std::array<double,729> Kuu_tmp;
-    for( int i=0; i<729; i++ ) Kuu_tmp[i] = Kuu[i];
+    std::array<double,6561> Kuu_tmp;
+    for( int i=0; i<6561; i++ ) Kuu_tmp[i] = Kuu[i];
 
     for( int i=0; i<num_nods; i++ )
     {
@@ -362,7 +362,7 @@ void hexl27::permutate_Kuu_matrix( std::array<double,729>& Kuu ) const
                 {
                     int jl = j * dim + l;
                     int jol = jo * dim + l;
-                    Kuu[ik*27+jl] = Kuu_tmp[iok*27+jol];
+                    Kuu[ik*81+jl] = Kuu_tmp[iok*81+jol];
                 }
             }
         }
@@ -372,8 +372,8 @@ void hexl27::permutate_Kuu_matrix( std::array<double,729>& Kuu ) const
 // 
 void hexl27::cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const
 {
-    Kuu.resize(729); //27x27
-    std::array<double,729> Kuu_arr = Kuu_matrix( D );
+    Kuu.resize(6561); //81x81
+    std::array<double,6561> Kuu_arr = Kuu_matrix( D );
     permutate_Kuu_matrix( Kuu_arr );
-    for( int i=0; i<729; i++ ) Kuu[i] = Kuu_arr[i];
+    for( int i=0; i<6561; i++ ) Kuu[i] = Kuu_arr[i];
 }
