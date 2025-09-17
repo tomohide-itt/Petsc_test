@@ -494,11 +494,14 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
     {
       const PetscInt f = faces[i];
 
+      PetscInt depth;
+      PetscCall( DMPlexGetPointDepth( dm, f, &depth ) );
+
       //+++
-      PetscPrintf( PETSC_COMM_WORLD, "f=%5d\n", f );
+      PetscPrintf( PETSC_COMM_WORLD, "f=%5d depth=%5d\n", f, depth );
       //---
 
-      // P2の辺中点DOF
+      // 3D:面の中点DOF / 2D:辺の中点DOF
       PetscInt dof=0, off=0;
       PetscCall( PetscSectionGetDof(    loc_sec, f, &dof ) );
       PetscCall( PetscSectionGetOffset( loc_sec, f, &off ) );
@@ -512,37 +515,57 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
         }
       }
 
-      // P2の頂点DOF
-      const PetscInt* cone = NULL;
-      PetscInt ncone = 0;
-      PetscCall( DMPlexGetConeSize( dm, f, &ncone ) );
-      PetscCall( DMPlexGetCone(     dm, f, &cone  ) );
-      //+++
-      PetscPrintf( PETSC_COMM_WORLD, "f=%5d ncone=%5d\n", f, ncone );
-      for( PetscInt cn=0; cn<ncone; cn++ )
+      // 3D:辺の中点DOF / 2D:頂点のDOF
+      const PetscInt* cone1 = NULL;
+      PetscInt ncone1 = 0;
+      PetscCall( DMPlexGetConeSize( dm, f, &ncone1 ) );
+      PetscCall( DMPlexGetCone(     dm, f, &cone1  ) );
+      for( PetscInt cn1=0; cn1<ncone1; cn1++ )
       {
-        PetscInt p = cone[cn];
-        PetscPrintf( PETSC_COMM_WORLD, "f=%5d cone[%5d]=%5d\n", f, cn, p );
-      }
-      //---
-      /*
-      for( PetscInt cn=0; cn<ncone; cn++ )
-      {
-        PetscInt v = cone[cn];
-        PetscInt vdof=0, voff=0;
-        PetscCall( PetscSectionGetDof(    loc_sec, v, &vdof ) );
-        PetscCall( PetscSectionGetOffset( loc_sec, v, &voff ) );
-        if( vdof > 0 )
+        PetscInt p1 = cone1[cn1];
+        //+++
+        PetscPrintf( PETSC_COMM_WORLD, "f=%5d cone1[%5d]=%5d\n", f, cn1, p1 );
+        //---
+        PetscInt dof1=0, off1=0;
+        PetscCall( PetscSectionGetDof(    loc_sec, p1, &dof1 ) );
+        PetscCall( PetscSectionGetOffset( loc_sec, p1, &off1 ) );
+        if( dof1 > 0 )
         {
-          PetscInt nbf = vdof / Nc;
-          for( PetscInt j=0; j<nbf; j++ )
+          PetscInt nbf1 = dof1/Nc;
+          for( PetscInt j=0; j<nbf1; j++ )
           {
-            const PetscInt rloc = voff + j*Nc + dir; // ローカル添え字
-            PetscCall( VecSetValuesLocal( bloc, 1, &rloc, &F, ADD_VALUES ) );
+            const PetscInt rloc1 = off1 + j*Nc + dir; //ローカル添え字
+            PetscCall( VecSetValuesLocal( bloc, 1, &rloc1, &F, ADD_VALUES ) );
+          } 
+        }
+        // 3D:頂点のDOF
+        if( depth == 2 )
+        {
+          const PetscInt* cone2 = NULL;
+          PetscInt ncone2 = 0;
+          PetscCall( DMPlexGetConeSize( dm, p1, &ncone2 ) );
+          PetscCall( DMPlexGetCone(     dm, p1, &cone2  ) );
+          for( PetscInt cn2=0; cn2<ncone2; cn2++ )
+          {
+            PetscInt p2 = cone2[cn2];
+            //+++
+            PetscPrintf( PETSC_COMM_WORLD, "f=%5d p1=%5d cone2[%5d]=%5d\n", f, p1, cn2, p2 );
+            //---
+            PetscInt dof2=0, off2=0;
+            PetscCall( PetscSectionGetDof(    loc_sec, p2, &dof2 ) );
+            PetscCall( PetscSectionGetOffset( loc_sec, p2, &off2 ) );
+            if( dof2 > 0 )
+            {
+              PetscInt nbf2 = dof2/Nc;
+              for( PetscInt j=0; j<nbf2; j++ )
+              {
+                const PetscInt rloc2 = off2 + j*Nc + dir; //ローカル添え字
+                PetscCall( VecSetValuesLocal( bloc, 1, &rloc2, &F, ADD_VALUES ) );
+              } 
+            }
           }
         }
       }
-      */
     }
     PetscCall( ISRestoreIndices( faceIS, &faces ) );
     PetscCall( ISDestroy(&faceIS) );
@@ -555,6 +578,148 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
   PetscCall( DMLocalToGlobalEnd( dm, bloc, ADD_VALUES, b ) );
 
   PetscCall( VecDestroy( &bloc ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// Dirichlet境界条件 の設定
+PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b )
+{
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // Face Sets ラベル取得
+  DMLabel label = NULL;
+  PetscCall( DMGetLabel( dm, "Face Sets", &label ) );
+
+  // 対象エッジ集合を取得
+  IS faceIS = NULL;
+  PetscCall( DMLabelGetStratumIS( label, phys_id, &faceIS ) );
+
+  // ローカル Vec の作成
+  Vec xbc_loc = NULL;
+  PetscCall( DMCreateLocalVector( dm, &xbc_loc ) );
+  PetscCall( VecZeroEntries( xbc_loc ) );
+
+  // グローバル Vec の作成
+  Vec xbc_glb = NULL;
+  PetscCall( DMCreateGlobalVector( dm, &xbc_glb ) );
+  PetscCall( VecZeroEntries( xbc_glb ) );
+
+  // セクション取得
+  PetscSection loc_sec;
+  PetscSection glb_sec;
+  PetscCall( DMGetLocalSection( dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  PetscScalar gbc = 0.0;
+
+  // エッジ上のDOFとそのエッジの両端点のDOFを集める
+  std::vector<PetscInt> row_idxs; // グローバル方程式番号
+
+  if( faceIS )
+  {
+    const PetscInt* faces = NULL;
+    PetscInt nfaces = 0;
+    PetscCall( ISGetLocalSize( faceIS, &nfaces ) );
+    PetscCall( ISGetIndices( faceIS, &faces ) );
+
+    for( PetscInt i=0; i<nfaces; i++ )
+    {
+      const PetscInt f = faces[i];
+
+      PetscInt depth;
+      PetscCall( DMPlexGetPointDepth( dm, f, &depth ) );
+
+      // f の節点出力
+      //PetscCall( show_coords_boundary( rank, dm, f ) );
+
+      // 3D:面の中点DOF / 2D:辺の中点DOF
+      PetscInt dof=0, off=0;
+      PetscCall( PetscSectionGetDof(    glb_sec, f, &dof ) );
+      PetscCall( PetscSectionGetOffset( glb_sec, f, &off ) );
+      for( PetscInt k=0; k<dof; k++ )
+      {
+        const PetscInt rloc = off + k;
+        if( rloc >= 0 )
+        {
+          row_idxs.push_back( rloc );
+          //PetscCall( VecSetValuesLocal( xbc_loc, 1, &rloc, &gbc, ADD_VALUES ) );
+        }
+      }
+
+      // P2の頂点DOF
+      const PetscInt* cone1 = NULL;
+      PetscInt ncone1 = 0;
+      PetscCall( DMPlexGetConeSize( dm, f, &ncone1 ) );
+      PetscCall( DMPlexGetCone(     dm, f, &cone1  ) );
+      for( PetscInt cn1=0; cn1<ncone1; cn1++ )
+      {
+        PetscInt p1 = cone1[cn1];
+        PetscInt dof1=0, off1=0;
+        PetscCall( PetscSectionGetDof(    glb_sec, p1, &dof1 ) );
+        PetscCall( PetscSectionGetOffset( glb_sec, p1, &off1 ) );
+        for( PetscInt k=0; k<dof1; k++ )
+        {
+          const PetscInt rloc1 = off1 + k;
+          if( rloc1 >= 0 )
+          {
+            row_idxs.push_back( rloc1 );
+            //PetscCall( VecSetValuesLocal( xbc_loc, 1, &rloc, &gbc, ADD_VALUES ) );
+          }
+        }
+        if( depth == 2 )
+        {
+          const PetscInt* cone2 = NULL;
+          PetscInt ncone2 = 0;
+          PetscCall( DMPlexGetConeSize( dm, p1, &ncone2 ) );
+          PetscCall( DMPlexGetCone(     dm, p1, &cone2  ) );
+          for( PetscInt cn2=0; cn2<ncone2; cn2++ )
+          {
+            PetscInt p2 = cone2[cn2];
+            PetscInt dof2=0, off2=0;
+            PetscCall( PetscSectionGetDof(    loc_sec, p2, &dof2 ) );
+            PetscCall( PetscSectionGetOffset( loc_sec, p2, &off2 ) );
+            for( PetscInt k=0; k<dof2; k++ )
+            {
+              const PetscInt rloc2 = off2 + k;
+              if( rloc2 >= 0 )
+              {
+                row_idxs.push_back( rloc2 );
+                //PetscCall( VecSetValuesLocal( xbc_loc, 1, &rloc, &gbc, ADD_VALUES ) );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    PetscCall( ISRestoreIndices( faceIS, &faces ) );
+    PetscCall( ISDestroy( &faceIS ) );
+  }
+
+  // 重複除去
+  std::sort( row_idxs.begin(), row_idxs.end() );
+  row_idxs.erase( std::unique( row_idxs.begin(), row_idxs.end() ), row_idxs.end() );
+
+  // Local -> Global
+  IS is_glb = NULL;
+  PetscCall( ISCreateGeneral( PETSC_COMM_WORLD, (PetscInt)row_idxs.size(), row_idxs.data(), PETSC_COPY_VALUES, &is_glb ) );
+
+  PetscCall( VecAssemblyBegin( xbc_loc ) );
+  PetscCall( VecAssemblyEnd(   xbc_loc ) );
+  PetscCall( DMLocalToGlobalBegin( dm, xbc_loc, ADD_VALUES, xbc_glb ) );
+  PetscCall( DMLocalToGlobalEnd(   dm, xbc_loc, ADD_VALUES, xbc_glb ) );
+
+  // 係数行列と右辺ベクトルへ Diriclet境界を適用 (u,v=0)
+  PetscCall( MatZeroRowsColumnsIS( A, is_glb, 1.0, xbc_glb, b ) );
+
+  PetscCall( ISDestroy( &is_glb ) );
+  PetscCall( VecDestroy( &xbc_loc ) );
+  PetscCall( VecDestroy( &xbc_glb ) );
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscFunctionReturn( PETSC_SUCCESS );

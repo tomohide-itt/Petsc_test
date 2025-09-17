@@ -30,5 +30,7 @@ PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D
 
 PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b );
 
+PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
+
 #endif
 
