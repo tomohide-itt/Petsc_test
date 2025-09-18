@@ -32,5 +32,11 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
 
 PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
 
+PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes );
+
+PetscErrorCode show_displacement( const elem_vec& elems );
+
+void output_vtk( const std::string& vtk_path, const node_vec& nodes, const elem_vec& elems, const std::map<int,int>& lpid2ntag );
+
 #endif
 

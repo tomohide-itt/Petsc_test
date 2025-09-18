@@ -33,6 +33,8 @@ public:
     ~node_vec();
     void create_new( const int p, const double x, const double y, const double z );
     const int size() const{ return m_nodes.size(); }
+    std::shared_ptr<node> operator[]( const int idx ){ return m_nodes[idx]; }
+    const std::shared_ptr<node> operator[]( const int idx ) const { return m_nodes[idx]; }
     //const node* pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }
     //node* pid_is( const int pid ){ return m_nodes[m_pid2idx.at(pid)]; }
     const std::shared_ptr<node> pid_is( const int pid ) const{ return m_nodes[m_pid2idx.at(pid)]; }

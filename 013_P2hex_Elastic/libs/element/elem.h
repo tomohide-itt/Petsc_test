@@ -46,7 +46,13 @@ public:
     elem_vec();
     template< class ETYPE > void create_new( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes );
     const int size() const{ return m_elems.size(); }
+    std::shared_ptr<elem> operator[]( const int idx ){ return m_elems[idx]; }
+    const std::shared_ptr<elem> operator[]( const int idx ) const { return m_elems[idx]; }
     const std::shared_ptr<elem> pid_is( const int pid ) const{ return m_elems[m_pid2idx.at(pid)]; }
+    std::vector<std::shared_ptr<elem>>::iterator begin(){ return m_elems.begin(); }
+    std::vector<std::shared_ptr<elem>>::iterator end(){ return m_elems.end(); }
+    std::vector<std::shared_ptr<elem>>::const_iterator begin() const{ return m_elems.begin(); }
+    std::vector<std::shared_ptr<elem>>::const_iterator end() const{ return m_elems.end(); }
     void show() const;
 private:
     std::vector<std::shared_ptr<elem>> m_elems;

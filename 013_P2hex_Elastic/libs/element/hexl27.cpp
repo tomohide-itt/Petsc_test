@@ -26,16 +26,14 @@ void hexl27::initialize( const int p, const std::vector<int>& nd_clos_ids, node_
     }
     // 積分点位置
     gp_pos.resize(4);
-    gp_pos[0] = -0.861136311594053;
-    gp_pos[1] = -0.339981043584856;
-    gp_pos[2] = -gp_pos[1];
-    gp_pos[3] = -gp_pos[0];
+    gp_pos[0] = -0.774596669241483;
+    gp_pos[1] = 0.0;
+    gp_pos[2] = -gp_pos[0];
     // 積分点重み
     gp_wei.resize(4);
-    gp_wei[0] = 0.347854845137454;
-    gp_wei[1] = 0.652145154862546;
-    gp_wei[2] = gp_wei[1];
-    gp_wei[3] = gp_wei[0];
+    gp_wei[0] = 0.555555555555556;
+    gp_wei[1] = 0.888888888888889;
+    gp_wei[2] = gp_wei[0];
 }
 
 // pointID に対応する点の座標を計算する
@@ -282,15 +280,15 @@ std::array<double,486> hexl27::B_matrix_at( const int ng ) const
     for( int i=0; i<486; i++ ) B[i] = 0.0;
     for( int i=0; i<num_nods; i++ )
     {
-        B[0*27 + (3*i+0)] = -derivN[i*3+0];
-        B[1*27 + (3*i+1)] = -derivN[i*3+1];
-        B[2*27 + (3*i+2)] = -derivN[i*3+2];
-        B[3*27 + (3*i+0)] = -derivN[i*3+1]*0.5;
-        B[3*27 + (3*i+1)] = -derivN[i*3+0]*0.5;
-        B[4*27 + (3*i+1)] = -derivN[i*3+2]*0.5;
-        B[4*27 + (3*i+2)] = -derivN[i*3+1]*0.5;
-        B[5*27 + (3*i+0)] = -derivN[i*3+2]*0.5;
-        B[5*27 + (3*i+2)] = -derivN[i*3+0]*0.5;
+        B[0*81 + (3*i+0)] = -derivN[i*3+0];
+        B[1*81 + (3*i+1)] = -derivN[i*3+1];
+        B[2*81 + (3*i+2)] = -derivN[i*3+2];
+        B[3*81 + (3*i+0)] = -derivN[i*3+1]*0.5;
+        B[3*81 + (3*i+1)] = -derivN[i*3+0]*0.5;
+        B[4*81 + (3*i+1)] = -derivN[i*3+2]*0.5;
+        B[4*81 + (3*i+2)] = -derivN[i*3+1]*0.5;
+        B[5*81 + (3*i+0)] = -derivN[i*3+2]*0.5;
+        B[5*81 + (3*i+2)] = -derivN[i*3+0]*0.5;
     }
     return B;
 }
