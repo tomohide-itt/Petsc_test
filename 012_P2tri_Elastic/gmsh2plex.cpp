@@ -103,7 +103,7 @@ int main(int argc,char **argv)
 
   //=== 変位の出力 ==============================================================================
   PetscCall( set_displacement( dm, sol, nodes ) );
-//  PetscCall( show_displacement( elems ) );
+  PetscCall( show_displacement( elems ) );
 
   //=== vtk ファイルの出力 ==============================================================================
   output_vtk( vtk_path, nodes, elems, lpid2ntag );

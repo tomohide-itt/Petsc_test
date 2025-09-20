@@ -25,6 +25,8 @@ public:
     virtual ~elem() = default;
     virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ){}
     virtual void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const{}
+    virtual int vtk_num_vertex() const { return -1; }
+    virtual int vtk_cell_type() const { return -1; }
 public:
     int id;
     int pid;

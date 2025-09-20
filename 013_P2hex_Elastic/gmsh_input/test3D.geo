@@ -44,13 +44,13 @@ Physical Volume( "domain", 100 ) = {1};
 
 // 境界（2D 面）
 Physical Surface( "right", 1 ) = {1};
-Physical Surface( "back", 2 ) = {2};
+Physical Surface( "back", 5 ) = {2};
 Physical Surface( "left", 3 ) = {3};
-Physical Surface( "front", 4 ) = {4};
-Physical Surface( "bottom", 5 ) = {5};
-Physical Surface( "top", 6 ) = {6};
+Physical Surface( "front", 6 ) = {4};
+Physical Surface( "bottom", 4 ) = {5};
+Physical Surface( "top", 2 ) = {6};
 //
-Transfinite Line "*" = 1 Using Bump 1.0;
+Transfinite Line "*" = 11 Using Bump 1.0;
 Transfinite Surface "*";
 Recombine Surface "*";
 Transfinite Volume "*";

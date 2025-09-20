@@ -19,6 +19,8 @@ public:
     void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ) override;
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
     void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const override;
+    int vtk_num_vertex() const override { return 3; }
+    int vtk_cell_type() const override { return 5; }
 private:
     static void get_coords_vertex( const DM& dm, const int p, std::vector<double>& xy );
     static void get_coords_face( const DM& dm, const int p, std::vector<double>& xy );

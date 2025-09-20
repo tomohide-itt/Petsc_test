@@ -18,6 +18,8 @@ public:
     void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ) override;
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
     void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const override;
+    int vtk_num_vertex() const override { return 8; }
+    int vtk_cell_type() const override { return 12; }
 private:
     std::array<double,81> get_xye() const;
     std::array<double,81> dNdr_at( const int ng ) const;

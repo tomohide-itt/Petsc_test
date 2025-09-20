@@ -1,5 +1,5 @@
 // mpiexec -n 2 ./gmsh2plex -mesh test2D_2.msh -vtk mesh.vtk -ksp_monitor
-// mpiexec -n 1 ./gmsh2plex -mesh test3D_c.msh -vtk mesh.vtk
+// mpiexec -n 1 ./gmsh2plex -mesh test3D_1.msh -vtk mesh.vtk -ksp_monitor
 #include <iostream>
 #include <string>
 #include <vector>
@@ -86,15 +86,22 @@ int main(int argc,char **argv)
   PetscCall( cal_D_matrix( dm, E, nu, D ) );
 
   //=== Kuuマトリクスをマージ ==============================================================================
-  PetscCall( merge_Kuu_matrix( dm, D, elems, A, true ) );
+  PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
   //=== 節点力 ==============================================================================
-  //PetscCall( set_nodal_force( dm, 2, -10, 1, b ) );
-  PetscCall( set_nodal_force( dm, 6, -10, 2, b ) );  //3D
+  int dir = 1;
+  {
+    PetscInt dim;
+    PetscCall( DMGetDimension( dm, &dim ) );
+    dir = dim - 1;
+  }
+  int phys_id_top = 2;
+  
+  PetscCall( set_nodal_force( dm, phys_id_top, -10, dir, b ) );
 
   //=== Dirichlet境界条件 ==============================================================================
-  //PetscCall( set_Dirichlet_zero( dm, 4, A, b ) );
-  PetscCall( set_Dirichlet_zero( dm, 5, A, b ) ); //3D
+  int phys_id_bottom = 4;
+  PetscCall( set_Dirichlet_zero( dm, phys_id_bottom, A, b ) );
 
   //=== ソルバーで解く ==============================================================================
   KSP ksp;
