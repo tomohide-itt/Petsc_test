@@ -216,10 +216,35 @@ std::array<double,9> hexl27::J_at( const int ng ) const
     return J;
 }
 
+// Jを計算 (3x3) ：dNdr, xyeから
+std::array<double,9> hexl27::J( const std::array<double,81>& dNdr, const std::array<double,81>& xye ) const
+{
+    std::array<double,9> J;
+    for( int i=0; i<dim; i++ )
+    {
+        for( int j=0; j<dim; j++ )
+        {
+            J[i*dim+j] = 0.0;
+            for( int k=0; k<num_nods; k++ )
+            {
+                J[i*dim+j] += dNdr[k*dim+i]*xye[k*dim+j];
+            }
+        }
+    }
+    return J;
+}
+
 // detJを計算
 double hexl27::detJ_at( const int ng ) const
 {
     std::array<double,9> J = J_at( ng );
+    return J[0*dim+0]*J[1*dim+1]*J[2*dim+2] + J[0*dim+1]*J[1*dim+2]*J[2*dim+0] + J[0*dim+2]*J[1*dim+0]*J[2*dim+1]
+          -J[0*dim+2]*J[1*dim+1]*J[2*dim+0] - J[0*dim+1]*J[1*dim+0]*J[2*dim+2] - J[0*dim+0]*J[1*dim+2]*J[2*dim+1];
+}
+
+// detJを計算 : Jから
+double hexl27::detJ( const std::array<double,9>& J ) const
+{
     return J[0*dim+0]*J[1*dim+1]*J[2*dim+2] + J[0*dim+1]*J[1*dim+2]*J[2*dim+0] + J[0*dim+2]*J[1*dim+0]*J[2*dim+1]
           -J[0*dim+2]*J[1*dim+1]*J[2*dim+0] - J[0*dim+1]*J[1*dim+0]*J[2*dim+2] - J[0*dim+0]*J[1*dim+2]*J[2*dim+1];
 }
@@ -229,6 +254,22 @@ std::array<double,9> hexl27::J_I_T_at( const int ng ) const
 {
     std::array<double,9> J = J_at( ng );
     double detJ = detJ_at( ng );
+    std::array<double,9> J_I_T;
+    J_I_T[0*dim+0] = (J[1*dim+1]*J[2*dim+2] - J[1*dim+2]*J[2*dim+1])/detJ;
+	J_I_T[1*dim+0] = (J[0*dim+2]*J[2*dim+1] - J[0*dim+1]*J[2*dim+2])/detJ;
+	J_I_T[2*dim+0] = (J[0*dim+1]*J[1*dim+2] - J[0*dim+2]*J[1*dim+1])/detJ;
+	J_I_T[0*dim+1] = (J[1*dim+2]*J[2*dim+0] - J[1*dim+0]*J[2*dim+2])/detJ;
+	J_I_T[1*dim+1] = (J[0*dim+0]*J[2*dim+2] - J[0*dim+2]*J[2*dim+0])/detJ;
+	J_I_T[2*dim+1] = (J[0*dim+2]*J[1*dim+0] - J[0*dim+0]*J[1*dim+2])/detJ;
+	J_I_T[0*dim+2] = (J[1*dim+0]*J[2*dim+1] - J[1*dim+1]*J[2*dim+0])/detJ;
+	J_I_T[1*dim+2] = (J[0*dim+1]*J[2*dim+0] - J[0*dim+0]*J[2*dim+1])/detJ;
+	J_I_T[2*dim+2] = (J[0*dim+0]*J[1*dim+1] - J[0*dim+1]*J[1*dim+0])/detJ;
+    return J_I_T;
+}
+
+// J-T を計算 (3x3) : J, detJから
+std::array<double,9> hexl27::J_I_T( const std::array<double,9>& J, const double detJ ) const
+{
     std::array<double,9> J_I_T;
     J_I_T[0*dim+0] = (J[1*dim+1]*J[2*dim+2] - J[1*dim+2]*J[2*dim+1])/detJ;
 	J_I_T[1*dim+0] = (J[0*dim+2]*J[2*dim+1] - J[0*dim+1]*J[2*dim+2])/detJ;
@@ -262,10 +303,37 @@ std::array<double,81> hexl27::derivN_at( const int ng ) const
     return derivN;
 }
 
+// derivNを計算 (27x3) : dNdr, J_I_Tから
+std::array<double,81> hexl27::derivN( const std::array<double,81>& dNdr, const std::array<double,9>& J_I_T ) const
+{
+    std::array<double,81> derivN;
+    for( int i=0; i<num_nods; i++ )
+    {
+        for( int j=0; j<dim; j++ )
+        {
+            derivN[i*dim+j] = 0.0;
+            for( int k=0; k<dim; k++ )
+            {
+                derivN[i*dim+j] += dNdr[i*dim+k] * J_I_T[k*dim+j];
+            }
+        }
+    }
+    return derivN;
+}
+
 // 体積積分時に乗じる係数を計算
 double hexl27::fac_at( const int ng ) const
 {
     double detJ = detJ_at( ng );
+    int ig = static_cast<int>( ng/3/3 );
+    int jg = static_cast<int>( (ng-ig*3*3)/3 );
+    int kg = ng - ig*3*3 - jg*3;
+    return gp_wei[ig] * gp_wei[jg] * gp_wei[kg] * detJ;
+}
+
+// 体積積分時に乗じる係数を計算　： detJから
+double hexl27::fac( const int ng, const double detJ ) const
+{
     int ig = static_cast<int>( ng/3/3 );
     int jg = static_cast<int>( (ng-ig*3*3)/3 );
     int kg = ng - ig*3*3 - jg*3;
@@ -293,12 +361,40 @@ std::array<double,486> hexl27::B_matrix_at( const int ng ) const
     return B;
 }
 
+// Bマトリクスの計算 (6x81)
+std::array<double,486> hexl27::B_matrix( const std::array<double,81>& derivN ) const
+{
+    std::array<double,486> B;
+    for( int i=0; i<486; i++ ) B[i] = 0.0;
+    for( int i=0; i<num_nods; i++ )
+    {
+        B[0*81 + (3*i+0)] = -derivN[i*3+0];
+        B[1*81 + (3*i+1)] = -derivN[i*3+1];
+        B[2*81 + (3*i+2)] = -derivN[i*3+2];
+        B[3*81 + (3*i+0)] = -derivN[i*3+1]*0.5;
+        B[3*81 + (3*i+1)] = -derivN[i*3+0]*0.5;
+        B[4*81 + (3*i+1)] = -derivN[i*3+2]*0.5;
+        B[4*81 + (3*i+2)] = -derivN[i*3+1]*0.5;
+        B[5*81 + (3*i+0)] = -derivN[i*3+2]*0.5;
+        B[5*81 + (3*i+2)] = -derivN[i*3+0]*0.5;
+    }
+    return B;
+}
+
 // BVOLマトリクスの計算 (6x81)
 std::array<double,486> hexl27::BVOL_matrix_at( const int ng ) const
 {
     std::array<double,486> BVOL = B_matrix_at( ng );
     double fac = fac_at( ng );
     for( int i=0; i<486; i++ ) BVOL[i] *= fac;
+    return BVOL;
+}
+
+// BVOLマトリクスの計算 (6x81)
+std::array<double,486> hexl27::BVOL_matrix( const std::array<double,486>& B, const double fac ) const
+{
+    std::array<double,486> BVOL;
+    for( int i=0; i<486; i++ ) BVOL[i] = B[i]*fac;
     return BVOL;
 }
 
@@ -309,8 +405,17 @@ std::array<double,6561> hexl27::Kuu_matrix( const std::vector<double>& D ) const
     for( int i=0; i<6561; i++ ) Kuu[i] = 0.0;
     for( int ng=0; ng<num_gp; ng++ )
     {
-        std::array<double,486> B = B_matrix_at( ng );
-        std::array<double,486> BVOL = BVOL_matrix_at( ng );
+        //std::array<double,486> B = B_matrix_at( ng );
+        //std::array<double,486> BVOL = BVOL_matrix_at( ng );
+        std::array<double,81> xye = this->get_xye();
+        std::array<double,81> dNdr = this->dNdr_at( ng );
+        std::array<double,9>  J    = this->J( dNdr, xye );
+        double detJ = this->detJ( J );
+        std::array<double,9> J_I_T = this->J_I_T( J, detJ );
+        std::array<double,81> derivN = this->derivN( dNdr, J_I_T );
+        double fac = this->fac( ng, detJ );
+        std::array<double,486> B = this->B_matrix( derivN );
+        std::array<double,486> BVOL = this->BVOL_matrix( B, fac );
 
         std::array<double,486> BTD;
         for( int i=0; i<81; i++ )
@@ -367,11 +472,82 @@ void hexl27::permutate_Kuu_matrix( std::array<double,6561>& Kuu ) const
     }
 }
 
+void hexl27::Kuu_matrix( const std::vector<double>& D, std::vector<double>& Kuu ) const
+{
+    for( int i=0; i<6561; i++ ) Kuu[i] = 0.0;
+    for( int ng=0; ng<num_gp; ng++ )
+    {
+        std::array<double,81> xye = this->get_xye();
+        std::array<double,81> dNdr = this->dNdr_at( ng );
+        std::array<double,9>  J    = this->J( dNdr, xye );
+        double detJ = this->detJ( J );
+        std::array<double,9> J_I_T = this->J_I_T( J, detJ );
+        std::array<double,81> derivN = this->derivN( dNdr, J_I_T );
+        double fac = this->fac( ng, detJ );
+        std::array<double,486> B = this->B_matrix( derivN );
+        std::array<double,486> BVOL = this->BVOL_matrix( B, fac );
+
+        std::array<double,486> BTD;
+        for( int i=0; i<81; i++ )
+        {
+            for( int j=0; j<6; j++ )
+            {
+                BTD[i*6+j] = 0.0;
+                for( int k=0; k<6; k++ )
+                {
+                    if( k < 3  ) BTD[i*6+j] += B[k*81+i]*D[k*6+j];
+                    else         BTD[i*6+j] += 2.0*B[k*81+i]*D[k*6+j];
+                }
+            }
+        }
+
+        for( int i=0; i<81; i++ )
+        {
+            for( int j=0; j<81; j++ )
+            {
+                for( int k=0; k<6; k++ )
+                {
+                    if( k <  3 ) Kuu[i*81+j] += BTD[i*6+k]*BVOL[k*81+j];
+                    else         Kuu[i*81+j] += 2.0*BTD[i*6+k]*BVOL[k*81+j];
+                }
+            }
+        }
+    }
+}
+
+void hexl27::permutate_Kuu_matrix( std::vector<double>& Kuu ) const
+{
+    std::array<double,6561> Kuu_tmp;
+    for( int i=0; i<6561; i++ ) Kuu_tmp[i] = Kuu[i];
+
+    for( int i=0; i<num_nods; i++ )
+    {
+        int io = perm[i];
+        for( int k=0; k<dim; k++ )
+        {
+            int ik = i * dim + k;
+            int iok = io * dim + k;
+            for( int j=0; j<num_nods; j++ )
+            {
+                int jo = perm[j];
+                for( int l=0; l<dim; l++ )
+                {
+                    int jl = j * dim + l;
+                    int jol = jo * dim + l;
+                    Kuu[ik*81+jl] = Kuu_tmp[iok*81+jol];
+                }
+            }
+        }
+    }
+}
+
 // 
 void hexl27::cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const
 {
     Kuu.resize(6561); //81x81
-    std::array<double,6561> Kuu_arr = Kuu_matrix( D );
-    permutate_Kuu_matrix( Kuu_arr );
-    for( int i=0; i<6561; i++ ) Kuu[i] = Kuu_arr[i];
+    //std::array<double,6561> Kuu_arr = Kuu_matrix( D );
+    //permutate_Kuu_matrix( Kuu_arr );
+    //for( int i=0; i<6561; i++ ) Kuu[i] = Kuu_arr[i];
+    this->Kuu_matrix( D, Kuu );
+    this->permutate_Kuu_matrix( Kuu );
 }

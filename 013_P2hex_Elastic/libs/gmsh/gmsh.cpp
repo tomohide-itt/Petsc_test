@@ -255,15 +255,15 @@ PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
   gnid2ntag = nodes.idx2tag;
 
   //+++
-  if( rank == 0 )
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag2gnid\n" );
-    for( const auto& [ntag,gnid] : ntag2gnid )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag=%5d gnid=%5d\n", ntag, gnid );
-    }
-  }
+  //if( rank == 0 )
+  //{
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag2gnid\n" );
+  //  for( const auto& [ntag,gnid] : ntag2gnid )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "ntag=%5d gnid=%5d\n", ntag, gnid );
+  //  }
+  //}
   //---
 
   //要素読込
@@ -273,36 +273,36 @@ PetscErrorCode get_mesh_info( const std::string& mesh_path, const DM& dm,
   geid2etag = elems.idx2tag;
 
   //+++
-  if( rank == 0 )
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag2geid\n" );
-    for( const auto& [etag,geid] : etag2geid )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag=%5d geid=%5d\n", etag, geid );
-    }
-  }
+  //if( rank == 0 )
+  //{
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag2geid\n" );
+  //  for( const auto& [etag,geid] : etag2geid )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "etag=%5d geid=%5d\n", etag, geid );
+  //  }
+  //}
   //---
   PetscCall( get_elem_tag_local_pid_map( dm, nodes, elems, etag2lpid, lpid2etag, ntag2lpid, lpid2ntag, false ) );
 
   //+++
-  {
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    for( const auto& [lpid, ntag] : lpid2ntag )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d ntag=%5d\n", rank, lpid, ntag );
-    }
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    for( const auto& [ntag, lpid] : ntag2lpid )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d ntag=%5d lpid=%5d\n", rank, ntag, lpid );
-    }
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-    for( const auto& [lpid, etag] : lpid2etag )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d etag=%5d\n", rank, lpid, etag );
-    }
-  }
+  //{
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+  //  for( const auto& [lpid, ntag] : lpid2ntag )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d ntag=%5d\n", rank, lpid, ntag );
+  //  }
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+  //  for( const auto& [ntag, lpid] : ntag2lpid )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d ntag=%5d lpid=%5d\n", rank, ntag, lpid );
+  //  }
+  //  PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+  //  for( const auto& [lpid, etag] : lpid2etag )
+  //  {
+  //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d lpid=%5d etag=%5d\n", rank, lpid, etag );
+  //  }
+  //}
   //---
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );

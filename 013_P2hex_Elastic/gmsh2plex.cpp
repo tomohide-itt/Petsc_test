@@ -9,6 +9,7 @@
 #include <petscksp.h>
 #include "functions.h"
 #include "gmsh.h"
+#include "timer.h"
 
 int main(int argc,char **argv)
 {
@@ -48,17 +49,17 @@ int main(int argc,char **argv)
   PetscCall( partition_mesh( dm, dm_dist ) );
 
   //=== DM の情報を出力
-  PetscCall( show_DM_info( dm ) );
+  //PetscCall( show_DM_info( dm ) );
 
   //=== 節点の設定 ==============================================================================
   node_vec nodes;
   PetscCall( set_nodes( dm, nodes ) );
-  nodes.show();
+  //nodes.show();
 
   //=== 要素の設定 ==============================================================================
   elem_vec elems;
   PetscCall( set_elems( dm, nodes, elems ) );
-  elems.show();
+  //elems.show();
 
   //=== tag - id - pid の関係を得る ==============================================================================
   std::map<int,int> ntag2gnid, gnid2ntag;
@@ -69,7 +70,7 @@ int main(int argc,char **argv)
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
-  create_FE( dm, true );
+  create_FE( dm, false );
 
   //=== 係数行列，右辺ベクトルの作成 ==============================================================================
   Mat A;
@@ -97,23 +98,25 @@ int main(int argc,char **argv)
   }
   int phys_id_top = 2;
   
-  PetscCall( set_nodal_force( dm, phys_id_top, -10, dir, b ) );
+  PetscCall( set_nodal_force( dm, phys_id_top, -0.1, dir, b ) );
 
   //=== Dirichlet境界条件 ==============================================================================
   int phys_id_bottom = 4;
   PetscCall( set_Dirichlet_zero( dm, phys_id_bottom, A, b ) );
 
   //=== ソルバーで解く ==============================================================================
+  tmr.start();
   KSP ksp;
   PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
   PetscCall( KSPSetOperators( ksp, A, A ) );
   PetscCall( KSPSetType( ksp, KSPCG ) );
   PetscCall( KSPSetFromOptions(ksp) );
   PetscCall( KSPSolve( ksp, b, sol ) );
+  tmr.stop("solve");
 
   //=== 変位の出力 ==============================================================================
   PetscCall( set_displacement( dm, sol, nodes ) );
-  PetscCall( show_displacement( elems ) );
+  //PetscCall( show_displacement( elems ) );
 
   //=== vtk ファイルの出力 ==============================================================================
   output_vtk( vtk_path, nodes, elems, lpid2ntag );

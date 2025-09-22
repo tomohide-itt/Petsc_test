@@ -9,9 +9,10 @@ add_subdirectory( libs/functions functions )
 add_subdirectory( libs/node node )
 add_subdirectory( libs/element element )
 add_subdirectory( libs/gmsh gmsh )
+add_subdirectory( libs/timer timer )
 
 add_executable(${PRG_NAME} ${PRG_NAME}.cpp )
 
 target_link_libraries(${PRG_NAME} PRIVATE MPI::MPI_CXX PkgConfig::PETSC
-    functions node element gmsh
+    functions node element gmsh timer
 )

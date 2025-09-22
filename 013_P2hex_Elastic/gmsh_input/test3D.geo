@@ -1,4 +1,5 @@
 // gmsh test3D.geo -3 -order 2 -format msh2 -clmax 1.0 -clmin 1.0 -o test3D_c.msh
+// gmsh test3D.geo -3 -order 2 -format msh2 -o test3D_c.msh
 Point(1) = {0, 0, 0};
 Point(2) = {1, 0, 0};
 Point(3) = {1, 1, 0};
@@ -50,7 +51,7 @@ Physical Surface( "front", 6 ) = {4};
 Physical Surface( "bottom", 4 ) = {5};
 Physical Surface( "top", 2 ) = {6};
 //
-Transfinite Line "*" = 11 Using Bump 1.0;
+Transfinite Line "*" = 31 Using Bump 1.0;
 Transfinite Surface "*";
 Recombine Surface "*";
 Transfinite Volume "*";
