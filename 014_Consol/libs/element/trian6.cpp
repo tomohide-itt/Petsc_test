@@ -7,14 +7,16 @@ void trian6::initialize( const int p, const std::vector<int>& nd_clos_ids, node_
     this->dim = 2;
     this->num_gp = 6;
     // クロージャ順 -> マトリクス計算用順に交換するための対応関係
-    this->perm = { 5, 3, 4, 0, 1, 2 };
+    this->perms = { 5, 3, 4, 0, 1, 2 };
+    this->permw = { 0, 1, 2 };
     // 節点数
     this->num_nods = nd_clos_ids.size();
+    this->num_nodw = 3;
     // この要素が持つ節点の pid
     node_pids.resize( num_nods );
     for( int i=0; i<num_nods; i++ )
     {
-        node_pids[perm[i]] = nd_clos_ids[i];
+        node_pids[perms[i]] = nd_clos_ids[i];
     }
     // この要素が持つ節点へのポインタ 
     nod.resize( num_nods );
@@ -201,6 +203,17 @@ std::array<double,12> trian6::get_xye() const
     return xye;
 }
 
+// xyewを取得 (3x2)
+std::array<double,6> trian6::get_xyew() const
+{
+    std::array<double,6> xyew;
+    for( int i=0; i<num_nodw; i++ )
+    {
+        for( int j=0; j<dim; j++ ) xyew[i*dim+j] = this->nod[i]->xy[j];
+    }
+    return xyew;
+}
+
 // dNdrを計算 (6x2)
 std::array<double,12> trian6::dNdr_at( const int ng ) const
 {
@@ -230,6 +243,19 @@ std::array<double,12> trian6::dNdr_at( const int ng ) const
     return dNdr;
 }
 
+// dNdr_wを計算 (3x2)
+std::array<double,6> trian6::dNdr_w_at( const int ng ) const
+{
+    std::array<double,6> dNdr_w;
+    dNdr_w[0*2+0] = 1.0;
+    dNdr_w[1*2+0] = 0.0;
+    dNdr_w[2*2+0] =-1.0;
+    dNdr_w[0*2+1] = 0.0;
+    dNdr_w[1*2+1] = 1.0;
+    dNdr_w[2*2+1] =-1.0;
+    return dNdr_w;
+}
+
 // Jを計算 (2x2)
 std::array<double,4> trian6::J_at( const int ng ) const
 {
@@ -250,11 +276,38 @@ std::array<double,4> trian6::J_at( const int ng ) const
     return J;
 }
 
+// J_wを計算 (2x2)
+std::array<double,4> trian6::J_w_at( const int ng ) const
+{
+    std::array<double,6> xye_w = get_xyew();
+    std::array<double,6> dNdr_w = dNdr_w_at( ng );
+    std::array<double,4> J_w;
+    for( int i=0; i<dim; i++ )
+    {
+        for( int j=0; j<dim; j++ )
+        {
+            J_w[i*dim+j] = 0.0;
+            for( int k=0; k<num_nodw; k++ )
+            {
+                J_w[i*dim+j] += dNdr_w[k*dim+i]*xye_w[k*dim+j];
+            }
+        }
+    }
+    return J_w;
+}
+
 // detJを計算
 double trian6::detJ_at( const int ng ) const
 {
     std::array<double,4> J = J_at( ng );
     return J[0]*J[3] - J[1]*J[2];
+}
+
+// detJ_wを計算
+double trian6::detJ_w_at( const int ng ) const
+{
+    std::array<double,4> J_w = J_w_at( ng );
+    return J_w[0]*J_w[3] - J_w[1]*J_w[2];
 }
 
 // J-T を計算 (2x2)
@@ -268,6 +321,18 @@ std::array<double,4> trian6::J_I_T_at( const int ng ) const
     J_I_T[0*2+1] =-J[1*2+0]/detJ;
     J_I_T[1*2+0] =-J[0*2+1]/detJ;
     return J_I_T;
+}
+
+std::array<double,4> trian6::J_I_T_w_at( const int ng ) const
+{
+    std::array<double,4> J_w = J_w_at( ng );
+    double detJ_w = detJ_w_at( ng );
+    std::array<double,4> J_I_T_w;
+    J_I_T_w[0*2+0] = J_w[1*2+1]/detJ_w;
+    J_I_T_w[1*2+1] = J_w[0*2+0]/detJ_w;
+    J_I_T_w[0*2+1] =-J_w[1*2+0]/detJ_w;
+    J_I_T_w[1*2+0] =-J_w[0*2+1]/detJ_w;
+    return J_I_T_w;
 }
 
 // derivNを計算 (6x2)
@@ -288,6 +353,26 @@ std::array<double,12> trian6::derivN_at( const int ng ) const
         }
     }
     return derivN;
+}
+
+// derivN_wを計算 (3x2)
+std::array<double,6> trian6::derivN_w_at( const int ng ) const
+{
+    std::array<double,6> dNdr_w = dNdr_w_at( ng );
+    std::array<double,4> J_I_T_w = J_I_T_w_at( ng );
+    std::array<double,6> derivN_w;
+    for( int i=0; i<num_nodw; i++ )
+    {
+        for( int j=0; j<dim; j++ )
+        {
+            derivN_w[i*dim+j] = 0.0;
+            for( int k=0; k<dim; k++ )
+            {
+                derivN_w[i*dim+j] += dNdr_w[i*dim+k] * J_I_T_w[k*dim+j];
+            }
+        }
+    }
+    return derivN_w;
 }
 
 // 体積積分時に乗じる係数を計算
@@ -323,6 +408,73 @@ std::array<double,48> trian6::BVOL_matrix_at( const int ng ) const
     double fac = fac_at( ng );
     for( int i=0; i<48; i++ ) BVOL[i] *= fac;
     return BVOL;
+}
+
+// Bvマトリクスの計算 (1x12)
+std::array<double,12> trian6::Bv_matrix_at( const int ng ) const
+{
+    std::array<double,12> derivN = derivN_at( ng );
+    std::array<double,12> Bv;
+    for( int i=0; i<12; i++ ) Bv[i] = 0.0;
+    for( int i=0; i<num_nods; i++ )
+    {
+        Bv[i*2+0] = -derivN[i*2+0];
+        Bv[i*2+1] = -derivN[i*2+1];
+    }
+    return Bv;
+}
+
+// Nhマトリクスの計算 (1x3)
+std::array<double,3> trian6::Nh_matrix_at( const int ng ) const
+{
+    double L1, L2, L3;
+    if( ng == 0 ){ L1 = gp_pos[0]; L2 = gp_pos[1]; }
+    if( ng == 1 ){ L1 = gp_pos[1]; L2 = gp_pos[0]; }
+    if( ng == 2 ){ L1 = gp_pos[1]; L2 = gp_pos[1]; }
+    if( ng == 3 ){ L1 = gp_pos[2]; L2 = gp_pos[3]; }
+    if( ng == 4 ){ L1 = gp_pos[3]; L2 = gp_pos[2]; }
+    if( ng == 5 ){ L1 = gp_pos[3]; L2 = gp_pos[3]; }
+    L3 = 1.0 - L1 - L2;
+
+    std::array<double,3> Nh;
+    Nh[0] = L1;
+    Nh[1] = L2;
+    Nh[2] = L3;
+    return Nh;
+}
+
+// NhVOLマトリクスの計算 (1x3)
+std::array<double,3> trian6:: NhVOL_matrix_at( const int ng ) const
+{
+    std::array<double,3> NhVOL = this->Nh_matrix_at( ng );
+    double fac = this->fac_at( ng );
+    for( int i=0; i<3; i++ ) NhVOL[i] *= fac;
+    return NhVOL;
+}
+
+// Bhマトリクスの計算 (2x3)
+std::array<double,6> trian6::Bh_matrix_at( const int ng ) const
+{
+    std::array<double,6> derivN_w = derivN_w_at( ng );
+    std::array<double,6> Bh;
+    for( int i=0; i<6; i++ ) Bh[i] = 0.0;
+    for( int i=0; i<num_nodw; i++ )
+    {
+        for( int j=0; j<dim; j++ )
+        {
+            Bh[j*3+i] = derivN_w[i*dim+j];
+        }
+    }
+    return Bh;
+}
+
+// BhVOLマトリクスの計算 (2x3)
+std::array<double,6> trian6::BhVOL_matrix_at( const int ng ) const
+{
+    std::array<double,6> BhVOL = this->Bh_matrix_at( ng );
+    double fac = this->fac_at( ng );
+    for( int i=0; i<6; i++ ) BhVOL[i] *= fac;
+    return BhVOL;
 }
 
 // Kuuマトリクスの計算 (12x12)
@@ -364,6 +516,24 @@ std::array<double,144> trian6::Kuu_matrix( const std::vector<double>& D ) const
     return Kuu;
 }
 
+// Kuhマトリクスの計算 (12x3)
+void trian6::Kuh_matrix( std::vector<double>& Kuh ) const
+{
+    for( int i=0; i<36; i++ ) Kuh[i] = 0.0;
+    for( int ng=0; ng<num_gp; ng++ )
+    {
+        std::array<double,12> Bv = Bv_matrix_at( ng ); //1x12
+        std::array<double,3>  NhVOL = NhVOL_matrix_at( ng ); //1x3
+        for( int i=0; i<12; i++ )
+        {
+            for( int j=0; j<3; j++ )
+            {
+                Kuh[i*3+j] = Bv[i]*NhVOL[j];
+            }
+        }
+    }
+}
+
 void trian6::permutate_Kuu_matrix( std::array<double,144>& Kuu ) const
 {
     std::array<double,144> Kuu_tmp;
@@ -371,20 +541,41 @@ void trian6::permutate_Kuu_matrix( std::array<double,144>& Kuu ) const
 
     for( int i=0; i<num_nods; i++ )
     {
-        int io = perm[i];
+        int io = perms[i];
         for( int k=0; k<dim; k++ )
         {
             int ik = i * dim + k;
             int iok = io * dim + k;
             for( int j=0; j<num_nods; j++ )
             {
-                int jo = perm[j];
+                int jo = perms[j];
                 for( int l=0; l<dim; l++ )
                 {
                     int jl = j * dim + l;
                     int jol = jo * dim + l;
                     Kuu[ik*12+jl] = Kuu_tmp[iok*12+jol];
                 }
+            }
+        }
+    }
+}
+
+void trian6::permutate_Kuh_matrix( std::vector<double>& Kuh ) const
+{
+    std::array<double,36> Kuh_tmp;
+    for( int i=0; i<36; i++ ) Kuh_tmp[i] = Kuh[i];
+
+    for( int i=0; i<num_nods; i++ )
+    {
+        int io = perms[i];
+        for( int k=0; k<dim; k++ )
+        {
+            int ik = i * dim + k;
+            int iok = io * dim + k;
+            for( int j=0; j<num_nodw; j++ )
+            {
+                int jo = permw[j];
+                Kuh[ik*3+j] = Kuh_tmp[iok*3+jo];
             }
         }
     }
@@ -397,6 +588,14 @@ void trian6::cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>
     std::array<double,144> Kuu_arr = Kuu_matrix( D );
     permutate_Kuu_matrix( Kuu_arr );
     for( int i=0; i<144; i++ ) Kuu[i] = Kuu_arr[i];
+}
+
+//
+void trian6::cal_Kuh_matrix( std::vector<double>& Kuh ) const
+{
+    Kuh.resize(36); //12x3
+    this->Kuh_matrix( Kuh );
+    this->permutate_Kuh_matrix( Kuh );
 }
 
 

@@ -45,7 +45,7 @@ PetscErrorCode partition_mesh( DM &dm, DM &dm_dist )
 
 // ----------------------------------------------------------------------------
 // dm の情報を出力する
-PetscErrorCode show_DM_info( const DM& dm )
+PetscErrorCode show_DM_info( const DM& dm, const int iwat )
 {
   // rankの取得
   PetscMPIInt rank;
@@ -112,6 +112,13 @@ PetscErrorCode show_DM_info( const DM& dm )
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   PetscCall( VecRestoreArrayRead( coords_loc, &coords_loc_arr ) );
 
+  // 変位用セクション取得
+  PetscSection loc_sec_u=NULL;
+  PetscCall( PetscSectionGetField( loc_sec, 0, &loc_sec_u ) );
+  // 水頭用セクション取得
+  PetscSection loc_sec_h=NULL;
+  if( iwat ) PetscCall( PetscSectionGetField( loc_sec, 1, &loc_sec_h ) );
+
   // セルのトランジティブクロージャの情報
   PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-------- rank=%3d transitive closure\n", rank );
   PetscInt c_start=0, c_end=0;
@@ -124,7 +131,12 @@ PetscErrorCode show_DM_info( const DM& dm )
     PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d npts=%5d\n", rank, c, npts );
     for( PetscInt k=0; k<npts; k++ )
     {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  rank=%3d pts=%5d%5d\n", rank, pts[k*2+0], pts[k*2+1] );
+      const PetscInt p = pts[k*2+0];
+      const PetscInt o = pts[k*2+1];
+      PetscInt dof_u=0, dof_h=0;
+      PetscCall( PetscSectionGetDof( loc_sec_u, p, &dof_u ) );
+      if( iwat ) PetscCall( PetscSectionGetDof( loc_sec_h, p, &dof_h ) );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  rank=%3d pts=%5d%5d dof_u=%5d dof_h=%5d\n", rank, p, o, dof_u, dof_h );
     }
     PetscCall( DMPlexRestoreTransitiveClosure( dm, c, PETSC_TRUE, &npts, &pts ) );
   }
@@ -249,7 +261,7 @@ PetscErrorCode set_elems( DM& dm, node_vec& nodes, elem_vec& elems )
 
 // ----------------------------------------------------------------------------
 // FE空間を作成する
-PetscErrorCode create_FE( DM dm, const bool debug )
+PetscErrorCode create_FE( DM dm, const int iwat, const bool debug )
 {
   tmr.start();
 
@@ -277,43 +289,115 @@ PetscErrorCode create_FE( DM dm, const bool debug )
 
   // 2次要素（P2）でdim成分ベクトル場（変位）に対する有限要素空間を作る
   // 引数は，コミュニケータ，次元，フィールド成分数，要素形状がsimplexか，P1/P2, 積分次数，出力先の有限要素オブジェクト
-  PetscFE fe;
-  PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, dim, is_simplex, 2, PETSC_DETERMINE, &fe ) );
+  PetscFE fe_u = NULL;
+  PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, dim, is_simplex, 2, PETSC_DETERMINE, &fe_u ) );
 
   // dm にフィールド0を登録
   // 引数は，メッシュオブジェクト，フィールド番号，ラベル，そのフィールドに対応する有限要素オブジェクト
-  //PetscCall( DMSetField( dm, 0, NULL, (PetscObject)fe ) );
-  PetscCall( DMAddField( dm, NULL, (PetscObject)fe ) );
+  PetscCall( DMSetField( dm, 0, NULL, (PetscObject)fe_u ) );
+  //PetscCall( DMAddField( dm, NULL, (PetscObject)fe ) );
+
+  // iwat = 1 のとき（土/水連成）
+  PetscFE fe_h = NULL;
+  if( iwat )
+  {
+    PetscCall( PetscFECreateLagrange( PETSC_COMM_WORLD, dim, 1, is_simplex, 1, PETSC_DETERMINE, &fe_h ) );
+    PetscCall( DMSetField( dm, 1, NULL, (PetscObject)fe_h ) );
+  }
 
   // Discrete System (PetscDS) を dm から生成する （自由度構造の確定）
   // 内部では，dmに紐づいた PetscSection を構築，PDE用のオブジェクト PetscDS を作成，各フィールドごとに PetscFE の情報を関連づけを行っている
   PetscCall( DMCreateDS( dm ) );
 
-  // --- ここからがポイント：FE の numDof から Section を明示生成 ---
-  PetscDS ds = NULL;
-  PetscCall( DMGetDS( dm, &ds ) );
-  PetscFE fe0 = NULL;
-  PetscCall( PetscDSGetDiscretization( ds, 0, (PetscObject*)&fe0 ) );
+  // 各フィールドの Nc と FE の num_dof (=Nc込み) を取得
+  PetscInt Nc_u=0, Nc_h=0;
+  const PetscInt *num_dof_u=NULL, *num_dof_h=NULL;
+  PetscCall( PetscFEGetNumComponents( fe_u, &Nc_u ) );
+  PetscCall( PetscFEGetNumDof( fe_u, &num_dof_u ) );
+  if( iwat )
+  {
+    PetscCall( PetscFEGetNumComponents( fe_h, &Nc_h ) );
+    PetscCall( PetscFEGetNumDof( fe_h, &num_dof_h ) );
+  }
 
-  const PetscInt *feNumDof = NULL;     // ← {3,3,3,3} が入っている（Nc込み）
-  PetscCall( PetscFEGetNumDof( fe0, &feNumDof ) );
+  //+++
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d : Nc_u=%5d num_dof_u: ", rank, Nc_u );
+    for( int i=0; i<=dim; i++ )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%3d", num_dof_u[i] );
+    }
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    if( iwat )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d : Nc_h=%5d num_dof_h: ", rank, Nc_h );
+      for( int i=0; i<=dim; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%3d", num_dof_h[i] );
+      }
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  }
+  //---
 
-  PetscInt Nc = 0, dimMesh = 0;
-  PetscCall( PetscFEGetNumComponents( fe0, &Nc ) );  // ここは 3 のはず
-  PetscCall( DMGetDimension( dm, &dimMesh ) );       // 3
+  // 成分数の配列
+  PetscInt num_fields = 1 + iwat;
+  std::vector<PetscInt> num_comp( num_fields );
+  num_comp[0] = Nc_u;
+  if( iwat ) num_comp[1] = Nc_h;
 
-  // DMPlexCreateSection へ渡す配列を組む（※Ncで割らない！）
-  PetscInt numComp[1]   = { Nc };                // =3
-  PetscInt numDofFlat[4];
-  for (PetscInt d=0; d<=dimMesh; ++d) numDofFlat[d] = feNumDof[d];  // {3,3,3,3}
+  // num_dof : 次元 d 毎に num_fields 個
+  std::vector<PetscInt> num_dof( (dim+1) * num_fields );
+  for( PetscInt d=0; d<=dim; d++ )
+  {
+    //num_dof[d*num_fields + 0] = num_dof_u[d];
+    //if( iwat ) num_dof[d*num_fields + 1] = num_dof_h[d];
+    num_dof[0*(dim+1)+d] = num_dof_u[d];
+    if( iwat ) num_dof[1*(dim+1)+d] = num_dof_h[d];
+  }
+
+  //+++
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d : num_comp=", rank );
+    for( int i=0; i<num_fields; i++ )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%3d", num_comp[i] );
+    }
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  }
+  //---
+  //+++
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d : num_dof:\n", rank );
+    for( int i=0; i<num_fields; i++ )
+    {
+      for( int j=0; j<=dim; j++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%3d", num_dof[i*(dim+1)+j] );
+      }
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  }
+  //---
 
   PetscSection sec = NULL;
   // args: dm, labels, numComp, numDof, numBC, bcields, bcPoints, bcComps, perm, sec
-  PetscCall( DMPlexCreateSection( dm, NULL, numComp, numDofFlat, 0, NULL, NULL, NULL, NULL, &sec ) );
+  PetscCall( DMPlexCreateSection( dm, NULL, num_comp.data(), num_dof.data(), 0, NULL, NULL, NULL, NULL, &sec ) );
   PetscCall( DMSetLocalSection( dm, sec ) );
   PetscCall( PetscSectionDestroy( &sec ) );
-  PetscCall( PetscFEDestroy( &fe ) );
-// -- ここまで
+
+  // feは，DM/DS側で保持されるので破棄
+  PetscCall( PetscFEDestroy( &fe_u ) );
+  PetscCall( PetscFEDestroy( &fe_h ) );
 
   // --- 検証: 本当に Section が張られたか ---
   if( debug )
@@ -405,6 +489,8 @@ PetscErrorCode cal_D_matrix( const DM& dm, const double E, const double nu, std:
   PetscFunctionReturn( PETSC_SUCCESS );
 }
 
+// ----------------------------------------------------------------------------
+// Kuuマトリクスを全体剛性マトリクスにマージする
 PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D, const elem_vec& elems, Mat& A, const bool debug )
 {
   tmr.start();
@@ -422,45 +508,22 @@ PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D
   PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
   PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
 
+  // 変位フィールドのセクションを取得
+  PetscSection loc_sec_u, glb_sec_u;
+  PetscCall( PetscSectionGetField( loc_sec, 0, &loc_sec_u ) );
+  PetscCall( PetscSectionGetField( glb_sec, 0, &glb_sec_u ) );
+
   // セルの範囲を取得
   PetscInt c_start=0, c_end=0;
   PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
 
   for( PetscInt c=c_start; c<c_end; c++ )
   {
-    // 局所自由度インデックス（プロセス内のローカルVecの位置）を取得
-    PetscInt* idx = NULL;
-    PetscInt nidx = 0;
-    PetscCall( DMPlexGetClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
-
-    //+++
-    if( debug )
-    {
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d nidx=%5d: Local DOF indices\n", rank, c, nidx );
-      for( int i=0; i<nidx; i++ )
-      {
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "idx[%5d]=%5d\n", i, idx[i] );
-      }
-    }
-    //---
     std::vector<double> Kuu;
     elems.pid_is(c)->cal_Kuu_matrix( Kuu, D );
 
-    //int num_nods = elems.pid_is(c)->num_nods;
-    //int Kuu_size = num_nods*dim * num_nods*dim;
-
-    //PetscScalar* Ke = new PetscScalar[ Kuu_size ];
-
-    //for( int i=0; i<Kuu_size; i++ ) Ke[i]=Kuu[i];
-
     // アセンブリ
-    PetscCall( DMPlexMatSetClosure( dm, loc_sec, glb_sec, A, c, Kuu.data(), ADD_VALUES ) );
-
-    // 局所自由度インデックスを返す
-    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
-
-    //delete[] Ke;
+    PetscCall( DMPlexMatSetClosure( dm, loc_sec_u, glb_sec_u, A, c, Kuu.data(), ADD_VALUES ) );
 
   } // for( c )
 
@@ -473,8 +536,83 @@ PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D
 }
 
 // ----------------------------------------------------------------------------
+// Kuhマトリクスを全体剛性マトリクスにマージする
+PetscErrorCode merge_Kuh_matrix( const DM& dm, const bool debug )
+{
+  tmr.start();
+
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // ローカルセクション，グローバルセクションを取得
+  PetscSection loc_sec, glb_sec;
+  PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  // 変位フィールドのセクションを取得
+  PetscSection loc_sec_u, glb_sec_u;
+  PetscCall( PetscSectionGetField( loc_sec, 0, &loc_sec_u ) );
+  PetscCall( PetscSectionGetField( glb_sec, 0, &glb_sec_u ) );
+
+  // 水頭フィールドのセクションを取得
+  PetscSection loc_sec_h, glb_sec_h;
+  PetscCall( PetscSectionGetField( loc_sec, 1, &loc_sec_h ) );
+  PetscCall( PetscSectionGetField( glb_sec, 1, &glb_sec_h ) );
+
+  // セルの範囲を取得
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt nidx_u, nidx_h;
+    const PetscInt *idx_u=NULL, *idx_h=NULL;
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec_u, glb_sec_u, c, PETSC_TRUE, &nidx_u, (PetscInt**)&idx_u, NULL, NULL ) );
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec_h, glb_sec_h, c, PETSC_TRUE, &nidx_h, (PetscInt**)&idx_h, NULL, NULL ) );
+    
+    if( debug )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d\n", rank, c );
+      for( int i=0; i<nidx_u; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  idx_u[%5d]=%5d\n", i, idx_u[i] );
+      }
+      for( int i=0; i<nidx_h; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  idx_h[%5d]=%5d\n", i, idx_h[i] );
+      }
+    }
+    
+    //std::vector<double> Kuu;
+    //elems.pid_is(c)->cal_Kuu_matrix( Kuu, D );
+
+    // アセンブリ
+    //PetscCall( DMPlexMatSetClosure( dm, loc_sec_u, glb_sec_u, A, c, Kuu.data(), ADD_VALUES ) );
+
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_u, glb_sec_u, c, PETSC_TRUE, &nidx_u, (PetscInt**)&idx_u, NULL, NULL ) );
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_h, glb_sec_h, c, PETSC_TRUE, &nidx_h, (PetscInt**)&idx_h, NULL, NULL ) );
+
+  } // for( c )
+
+  //PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  //PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  
+  tmr.stop( __FUNCTION__ );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
 // 節点力を設定
-PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b )
+PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b,
+  const bool debug )
 {
   tmr.start();
 
@@ -514,8 +652,11 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
   PetscCall( PetscFEGetNumComponents( fe, &Nc ) );
 
   //+++
-  //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
-  //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d set_nodal_force phys_id=%5d F=%15.5e dir=%5d\n", rank, phys_id, F, dir );
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d set_nodal_force phys_id=%5d F=%15.5e dir=%5d\n", rank, phys_id, F, dir );
+  }
   //---
 
   // 境界に載っている節点のrlocをユニークに収集する（所有ランクのみ）
@@ -539,14 +680,28 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
       for( PetscInt k=0; k<npts; k++ )
       {
         PetscInt p = pts[2*k];
+        /*
         PetscInt gdof=0, goff=0;
         PetscCall( PetscSectionGetDof(    glb_sec, p, &gdof ) );
         PetscCall( PetscSectionGetOffset( glb_sec, p, &goff ) );
+        //+++
+        if( debug )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  f=%5d p=%5d gdof=%5d goff=%5d\n", f, p, gdof, goff );
+        }
+        //---
         if( gdof <= 0 || goff < 0 ) continue;  //所有するランクのみ
+        */
 
         PetscInt ldof=0, loff=0;
         PetscCall( PetscSectionGetDof(    loc_sec, p, &ldof ) );
         PetscCall( PetscSectionGetOffset( loc_sec, p, &loff ) );
+        //+++
+        if( debug )
+        {
+          PetscSynchronizedPrintf( PETSC_COMM_WORLD, "     ldof=%5d loff=%5d\n", ldof, loff );
+        }
+        //---
         if( ldof <= 0 ) continue;
 
         const PetscInt nbf = ldof / Nc;
@@ -565,6 +720,18 @@ PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const Pets
   // 重複除去
   std::sort( rlocs.begin(), rlocs.end() );
   rlocs.erase( std::unique( rlocs.begin(), rlocs.end()), rlocs.end() );
+
+  //+++
+  if( debug )
+  {
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d rlocs:\n", rank );
+    for( int i=0; i<rlocs.size(); i++ )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%5d", rlocs[i] );
+    }
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+  }
+  //---
 
   for( PetscInt i=0; i<(PetscInt)rlocs.size(); i++ )
   {
@@ -1316,3 +1483,63 @@ void output_vtk( const std::string& vtk_path, const node_vec& nodes, const elem_
   }
   tmr.stop( __FUNCTION__ );
 }
+
+/*
+PetscErrorCode old_merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D, const elem_vec& elems, Mat& A, const bool debug )
+{
+  tmr.start();
+
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // ローカルセクション，グローバルセクションを取得
+  PetscSection loc_sec, glb_sec;
+  PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  // セルの範囲を取得
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    // 局所自由度インデックス（プロセス内のローカルVecの位置）を取得
+    PetscInt* idx = NULL;
+    PetscInt nidx = 0;
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
+
+    //+++
+    if( debug )
+    {
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "-----------\n" );
+      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d nidx=%5d: Local DOF indices\n", rank, c, nidx );
+      for( int i=0; i<nidx; i++ )
+      {
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "idx[%5d]=%5d\n", i, idx[i] );
+      }
+    }
+    //---
+    std::vector<double> Kuu;
+    elems.pid_is(c)->cal_Kuu_matrix( Kuu, D );
+
+    // アセンブリ
+    PetscCall( DMPlexMatSetClosure( dm, loc_sec, glb_sec, A, c, Kuu.data(), ADD_VALUES ) );
+
+    // 局所自由度インデックスを返す
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec, glb_sec, c, PETSC_TRUE, &nidx, &idx, NULL, NULL ) );
+
+  } // for( c )
+
+  PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  tmr.stop( __FUNCTION__ );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+*/

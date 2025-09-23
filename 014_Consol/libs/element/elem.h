@@ -25,6 +25,9 @@ public:
     virtual ~elem() = default;
     virtual void initialize( const int p, const std::vector<int>& nd_clos_ids, node_vec& nodes ){}
     virtual void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const{}
+    virtual void cal_Kuh_matrix( std::vector<double>& Kuh ) const{}
+    virtual void cal_Khu_matrix( std::vector<double>& Khu ) const{}
+    virtual void cal_Khh_matrix( std::vector<double>& Khh, const double k, const double gmw ) const{}
     virtual int vtk_num_vertex() const { return -1; }
     virtual int vtk_cell_type() const { return -1; }
 public:
@@ -32,11 +35,13 @@ public:
     int pid;
     int type;
     int num_nods;
+    int num_nodw;
     int dim;
     int num_gp;
     std::vector<int> node_pids;
     std::vector<std::shared_ptr<node>> nod;
-    std::vector<int> perm;
+    std::vector<int> perms;
+    std::vector<int> permw;
 
     std::vector<double> gp_pos;
     std::vector<double> gp_wei;

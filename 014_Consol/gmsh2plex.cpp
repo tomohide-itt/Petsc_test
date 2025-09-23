@@ -1,4 +1,4 @@
-// mpiexec -n 2 ./gmsh2plex -mesh test2D_2.msh -vtk mesh.vtk -ksp_monitor
+// mpiexec -n 2 ./gmsh2plex -mesh test2D_4.msh -vtk mesh.vtk -iwat 1 -ksp_monitor
 // mpiexec -n 1 ./gmsh2plex -mesh test3D_1.msh -vtk mesh.vtk -ksp_monitor
 #include <iostream>
 #include <string>
@@ -40,6 +40,12 @@ int main(int argc,char **argv)
     exit(1);
   }
 
+  // 実行時に -iwat : 0/1 を受け取る
+  char ciwat[PETSC_MAX_PATH_LEN] = "";
+  int iwat = 0;
+  PetscCall( PetscOptionsGetString( NULL, NULL, "-iwat", ciwat, sizeof(ciwat), NULL ) );
+  iwat = atoi( ciwat );
+
   //=== .mshをDMPlexで読み込む ==============================================================================
   DM dm = NULL; // 解析用DM
   read_gmsh( mesh_path, dm );
@@ -47,9 +53,6 @@ int main(int argc,char **argv)
   //=== 並列分割 ==============================================================================
   DM dm_dist = NULL;
   PetscCall( partition_mesh( dm, dm_dist ) );
-
-  //=== DM の情報を出力
-  //PetscCall( show_DM_info( dm ) );
 
   //=== 節点の設定 ==============================================================================
   node_vec nodes;
@@ -70,7 +73,10 @@ int main(int argc,char **argv)
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
-  create_FE( dm, false );
+  create_FE( dm, iwat, true );
+
+  //=== DM の情報を出力
+  PetscCall( show_DM_info( dm, iwat ) );
 
   //=== 係数行列，右辺ベクトルの作成 ==============================================================================
   Mat A;
@@ -89,6 +95,10 @@ int main(int argc,char **argv)
   //=== Kuuマトリクスをマージ ==============================================================================
   PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
+  //=== Kuhマトリクスをマージ =================================================================
+  if( iwat ) PetscCall( merge_Kuh_matrix( dm, true ) );
+
+  /*
   //=== 節点力 ==============================================================================
   int dir = 1;
   {
@@ -98,7 +108,7 @@ int main(int argc,char **argv)
   }
   int phys_id_top = 2;
   
-  PetscCall( set_nodal_force( dm, phys_id_top, -0.1, dir, b ) );
+  PetscCall( set_nodal_force( dm, phys_id_top, -0.1, dir, b, false ) );
 
   //=== Dirichlet境界条件 ==============================================================================
   int phys_id_bottom = 4;
@@ -116,10 +126,11 @@ int main(int argc,char **argv)
 
   //=== 変位の出力 ==============================================================================
   PetscCall( set_displacement( dm, sol, nodes ) );
-  //PetscCall( show_displacement( elems ) );
+  PetscCall( show_displacement( elems ) );
 
   //=== vtk ファイルの出力 ==============================================================================
   output_vtk( vtk_path, nodes, elems, lpid2ntag );
+  */
 
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );

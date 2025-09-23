@@ -7,16 +7,18 @@ void hexl27::initialize( const int p, const std::vector<int>& nd_clos_ids, node_
     this->dim = 3;
     this->num_gp = 27;
     // クロージャ順 -> マトリクス計算用順に交換するための対応関係
-    this->perm = { 26, 23, 25, 22, 24, 21, 16, 13, 10, 18,
+    this->perms = { 26, 23, 25, 22, 24, 21, 16, 13, 10, 18,
                     9,  8, 20, 11, 15, 17, 12, 14, 19,  1,
                     2,  6,  5,  0,  4,  7,  3 };
+    this->permw = { 1, 2, 6, 5, 0, 4, 7, 3 };
     // 節点数
     this->num_nods = nd_clos_ids.size();
+    this->num_nodw = 8;
     // この要素が持つ節点の pid
     node_pids.resize( num_nods );
     for( int i=0; i<num_nods; i++ )
     {
-        node_pids[perm[i]] = nd_clos_ids[i];
+        node_pids[perms[i]] = nd_clos_ids[i];
     }
     // この要素が持つ節点へのポインタ 
     nod.resize( num_nods );
@@ -453,14 +455,14 @@ void hexl27::permutate_Kuu_matrix( std::array<double,6561>& Kuu ) const
 
     for( int i=0; i<num_nods; i++ )
     {
-        int io = perm[i];
+        int io = perms[i];
         for( int k=0; k<dim; k++ )
         {
             int ik = i * dim + k;
             int iok = io * dim + k;
             for( int j=0; j<num_nods; j++ )
             {
-                int jo = perm[j];
+                int jo = perms[j];
                 for( int l=0; l<dim; l++ )
                 {
                     int jl = j * dim + l;
@@ -522,14 +524,14 @@ void hexl27::permutate_Kuu_matrix( std::vector<double>& Kuu ) const
 
     for( int i=0; i<num_nods; i++ )
     {
-        int io = perm[i];
+        int io = perms[i];
         for( int k=0; k<dim; k++ )
         {
             int ik = i * dim + k;
             int iok = io * dim + k;
             for( int j=0; j<num_nods; j++ )
             {
-                int jo = perm[j];
+                int jo = perms[j];
                 for( int l=0; l<dim; l++ )
                 {
                     int jl = j * dim + l;
