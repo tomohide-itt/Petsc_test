@@ -20,6 +20,8 @@ public:
     static bool get_coords( const DM& dm, const int p, std::vector<double>& xy );
     void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const override;
     void cal_Kuh_matrix( std::vector<double>& Kuh ) const override;
+    void cal_Khu_matrix( std::vector<double>& Khu ) const override;
+    void cal_Khh_matrix( std::vector<double>& Khh, const double k, const double gmw, const double fac ) const override;
     int vtk_num_vertex() const override { return 3; }
     int vtk_cell_type() const override { return 5; }
 private:
@@ -48,8 +50,12 @@ private:
     std::array<double,6>  BhVOL_matrix_at( const int ng ) const;
     std::array<double,144> Kuu_matrix( const std::vector<double>& D ) const;
     void Kuh_matrix( std::vector<double>& Kuh ) const;
+    void Khu_matrix( std::vector<double>& Khu ) const;
+    void Khh_matrix( std::vector<double>& Khh, const double k, const double gmw ) const;
     void permutate_Kuu_matrix( std::array<double,144>& Kuu ) const;
     void permutate_Kuh_matrix( std::vector<double>& Kuh ) const;
+    void permutate_Khu_matrix( std::vector<double>& Khu ) const;
+    void permutate_Khh_matrix( std::vector<double>& Khh ) const;
 };
 
 #endif

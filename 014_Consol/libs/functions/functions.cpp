@@ -537,7 +537,7 @@ PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D
 
 // ----------------------------------------------------------------------------
 // Kuhマトリクスを全体剛性マトリクスにマージする
-PetscErrorCode merge_Kuh_matrix( const DM& dm, const bool debug )
+PetscErrorCode merge_Kuh_matrix( const DM& dm, const elem_vec& elems, Mat& A, const bool debug )
 {
   tmr.start();
 
@@ -588,26 +588,142 @@ PetscErrorCode merge_Kuh_matrix( const DM& dm, const bool debug )
         PetscSynchronizedPrintf( PETSC_COMM_WORLD, "  idx_h[%5d]=%5d\n", i, idx_h[i] );
       }
     }
-    
-    //std::vector<double> Kuu;
-    //elems.pid_is(c)->cal_Kuu_matrix( Kuu, D );
+
+    std::vector<PetscInt> u_Apos, h_Apos;
+    for( PetscInt i=0; i<nidx_u; i++ ) u_Apos.push_back( idx_u[i] );
+    for( PetscInt i=0; i<nidx_h; i++ ) h_Apos.push_back( idx_h[i] );
+
+    std::vector<double> Kuh;
+    elems.pid_is(c)->cal_Kuh_matrix( Kuh );
 
     // アセンブリ
-    //PetscCall( DMPlexMatSetClosure( dm, loc_sec_u, glb_sec_u, A, c, Kuu.data(), ADD_VALUES ) );
+    PetscCall( MatSetValues( A, (PetscInt)nidx_u, u_Apos.data(), (PetscInt)nidx_h, h_Apos.data(), Kuh.data(), ADD_VALUES ) );
 
     PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_u, glb_sec_u, c, PETSC_TRUE, &nidx_u, (PetscInt**)&idx_u, NULL, NULL ) );
     PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_h, glb_sec_h, c, PETSC_TRUE, &nidx_h, (PetscInt**)&idx_h, NULL, NULL ) );
 
   } // for( c )
 
-  //PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
-  //PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
 
   PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
   
   tmr.stop( __FUNCTION__ );
   PetscFunctionReturn( PETSC_SUCCESS );
 }
+
+// ----------------------------------------------------------------------------
+// Khuマトリクスを全体剛性マトリクスにマージする
+PetscErrorCode merge_Khu_matrix( const DM& dm, const elem_vec& elems, Mat& A, const bool debug )
+{
+  tmr.start();
+
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // ローカルセクション，グローバルセクションを取得
+  PetscSection loc_sec, glb_sec;
+  PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  // 変位フィールドのセクションを取得
+  PetscSection loc_sec_u, glb_sec_u;
+  PetscCall( PetscSectionGetField( loc_sec, 0, &loc_sec_u ) );
+  PetscCall( PetscSectionGetField( glb_sec, 0, &glb_sec_u ) );
+
+  // 水頭フィールドのセクションを取得
+  PetscSection loc_sec_h, glb_sec_h;
+  PetscCall( PetscSectionGetField( loc_sec, 1, &loc_sec_h ) );
+  PetscCall( PetscSectionGetField( glb_sec, 1, &glb_sec_h ) );
+
+  // セルの範囲を取得
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    PetscInt nidx_u, nidx_h;
+    const PetscInt *idx_u=NULL, *idx_h=NULL;
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec_u, glb_sec_u, c, PETSC_TRUE, &nidx_u, (PetscInt**)&idx_u, NULL, NULL ) );
+    PetscCall( DMPlexGetClosureIndices( dm, loc_sec_h, glb_sec_h, c, PETSC_TRUE, &nidx_h, (PetscInt**)&idx_h, NULL, NULL ) );
+
+    std::vector<PetscInt> u_Apos, h_Apos;
+    for( PetscInt i=0; i<nidx_u; i++ ) u_Apos.push_back( idx_u[i] );
+    for( PetscInt i=0; i<nidx_h; i++ ) h_Apos.push_back( idx_h[i] );
+
+    std::vector<double> Khu;
+    elems.pid_is(c)->cal_Khu_matrix( Khu );
+
+    // アセンブリ
+    PetscCall( MatSetValues( A, (PetscInt)nidx_h, h_Apos.data(), (PetscInt)nidx_u, u_Apos.data(), Khu.data(), ADD_VALUES ) );
+
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_u, glb_sec_u, c, PETSC_TRUE, &nidx_u, (PetscInt**)&idx_u, NULL, NULL ) );
+    PetscCall( DMPlexRestoreClosureIndices( dm, loc_sec_h, glb_sec_h, c, PETSC_TRUE, &nidx_h, (PetscInt**)&idx_h, NULL, NULL ) );
+
+  } // for( c )
+
+  PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  
+  tmr.stop( __FUNCTION__ );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
+// Khhマトリクスを全体剛性マトリクスにマージする
+PetscErrorCode merge_Khh_matrix( const DM& dm, const double k, const double gmw, const double beta, const double dt, const elem_vec& elems, Mat& A, const bool debug )
+{
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // 次元の取得
+  PetscInt dim;
+  PetscCall( DMGetDimension( dm, &dim ) );
+
+  // ローカルセクション，グローバルセクションを取得
+  PetscSection loc_sec, glb_sec;
+  PetscCall( DMGetLocalSection(  dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  // 水頭フィールドのセクションを取得
+  PetscSection loc_sec_h, glb_sec_h;
+  PetscCall( PetscSectionGetField( loc_sec, 1, &loc_sec_h ) );
+  PetscCall( PetscSectionGetField( glb_sec, 1, &glb_sec_h ) );
+
+  // セルの範囲を取得
+  PetscInt c_start=0, c_end=0;
+  PetscCall( DMPlexGetHeightStratum( dm, 0, &c_start, &c_end ) );
+
+  // 
+  double fac = -beta*dt;
+
+  for( PetscInt c=c_start; c<c_end; c++ )
+  {
+    std::vector<double> Khh;
+    elems.pid_is(c)->cal_Khh_matrix( Khh, k, gmw, fac );
+
+    // アセンブリ
+    PetscCall( DMPlexMatSetClosure( dm, loc_sec_h, glb_sec_h, A, c, Khh.data(), ADD_VALUES ) );
+
+  } // for( c )
+
+  PetscCall( MatAssemblyBegin( A, MAT_FINAL_ASSEMBLY ) );
+  PetscCall( MatAssemblyEnd( A, MAT_FINAL_ASSEMBLY ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  tmr.stop( __FUNCTION__ );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
 
 // ----------------------------------------------------------------------------
 // 節点力を設定
@@ -927,6 +1043,98 @@ PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A,
 }
 
 // ----------------------------------------------------------------------------
+// 変位境界条件（固定） の設定
+PetscErrorCode set_GBC( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b )
+{
+  tmr.start();
+
+  // rankの取得
+  PetscMPIInt rank;
+  MPI_Comm_rank( PETSC_COMM_WORLD, &rank );
+
+  // Face Sets ラベル取得
+  DMLabel label = NULL;
+  PetscCall( DMGetLabel( dm, "Face Sets", &label ) );
+
+  // 対象エッジ集合を取得
+  IS faceIS = NULL;
+  PetscCall( DMLabelGetStratumIS( label, phys_id, &faceIS ) );
+
+  // グローバル Vec の作成
+  Vec xbc_glb = NULL;
+  PetscCall( DMCreateGlobalVector( dm, &xbc_glb ) );
+  PetscCall( VecZeroEntries( xbc_glb ) );
+
+  // セクション取得
+  PetscSection loc_sec;
+  PetscSection glb_sec;
+  PetscCall( DMGetLocalSection( dm, &loc_sec ) );
+  PetscCall( DMGetGlobalSection( dm, &glb_sec ) );
+
+  // 変位フィールドのセクションを取得
+  PetscSection loc_sec_u, glb_sec_u;
+  PetscCall( PetscSectionGetField( loc_sec, 0, &loc_sec_u ) );
+  PetscCall( PetscSectionGetField( glb_sec, 0, &glb_sec_u ) );
+
+  PetscScalar gbc = 0.0;
+
+  // エッジ上のDOFとそのエッジの両端点のDOFを集める
+  std::vector<PetscInt> row_idxs; // グローバル方程式番号
+
+  if( faceIS )
+  {
+    const PetscInt* faces = NULL;
+    PetscInt nfaces = 0;
+    PetscCall( ISGetLocalSize( faceIS, &nfaces ) );
+    PetscCall( ISGetIndices( faceIS, &faces ) );
+
+    for( PetscInt i=0; i<nfaces; i++ )
+    {
+      const PetscInt f = faces[i];
+
+      PetscInt npts=0;
+      PetscInt* pts=NULL;
+      PetscCall( DMPlexGetTransitiveClosure( dm, f, PETSC_TRUE, &npts, &pts ) );
+
+      for( PetscInt k=0; k<npts; k++ )
+      {
+        PetscInt p = pts[2*k];
+        PetscInt dof=0, off=0;
+        PetscCall( PetscSectionGetDof(    glb_sec_u, p, &dof ) );
+        PetscCall( PetscSectionGetOffset( glb_sec_u, p, &off ) );
+        for( PetscInt j=0; j<dof; j++ )
+        {
+          const PetscInt rloc = off + j;
+          row_idxs.push_back( rloc );
+        }
+      }
+      PetscCall( DMPlexRestoreTransitiveClosure( dm, f, PETSC_TRUE, &npts, &pts ) );
+    }
+
+    PetscCall( ISRestoreIndices( faceIS, &faces ) );
+    PetscCall( ISDestroy( &faceIS ) );
+  }
+
+  // 重複除去
+  std::sort( row_idxs.begin(), row_idxs.end() );
+  row_idxs.erase( std::unique( row_idxs.begin(), row_idxs.end() ), row_idxs.end() );
+
+  // Local -> Global
+  IS is_glb = NULL;
+  PetscCall( ISCreateGeneral( PETSC_COMM_WORLD, (PetscInt)row_idxs.size(), row_idxs.data(), PETSC_COPY_VALUES, &is_glb ) );
+
+  // 係数行列と右辺ベクトルへ Diriclet境界を適用 (u,v=0)
+  PetscCall( MatZeroRowsColumnsIS( A, is_glb, 1.0, xbc_glb, b ) );
+
+  PetscCall( ISDestroy( &is_glb ) );
+  PetscCall( VecDestroy( &xbc_glb ) );
+
+  PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+  tmr.stop( __FUNCTION__ );
+  PetscFunctionReturn( PETSC_SUCCESS );
+}
+
+// ----------------------------------------------------------------------------
 // 変位のセット
 PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes )
 {
@@ -943,6 +1151,10 @@ PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes )
   // セクション取得
   PetscSection sec;
   PetscCall( DMGetLocalSection( dm, &sec ) );
+
+  // 変位フィールドのセクションを取得
+  PetscSection loc_sec_u;
+  PetscCall( PetscSectionGetField( sec, 0, &loc_sec_u ) );
 
   // グローバル解をローカルに
   Vec sol_loc;
@@ -974,8 +1186,8 @@ PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes )
 
       PetscInt dof = 0;
       PetscInt off = 0;
-      PetscCall( PetscSectionGetDof( sec, p, &dof ) );
-      PetscCall( PetscSectionGetOffset( sec, p, &off ) );
+      PetscCall( PetscSectionGetDof( loc_sec_u, p, &dof ) );
+      PetscCall( PetscSectionGetOffset( loc_sec_u, p, &off ) );
       //+++
       //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "rank=%3d c=%5d p=%5d depth=%5d dof=%5d off=%5d\n", rank, c, p, depth, dof, off );
       //---

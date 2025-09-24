@@ -27,7 +27,7 @@ public:
     virtual void cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const{}
     virtual void cal_Kuh_matrix( std::vector<double>& Kuh ) const{}
     virtual void cal_Khu_matrix( std::vector<double>& Khu ) const{}
-    virtual void cal_Khh_matrix( std::vector<double>& Khh, const double k, const double gmw ) const{}
+    virtual void cal_Khh_matrix( std::vector<double>& Khh, const double k, const double gmw, const double fac ) const{}
     virtual int vtk_num_vertex() const { return -1; }
     virtual int vtk_cell_type() const { return -1; }
 public:

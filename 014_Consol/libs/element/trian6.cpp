@@ -528,7 +528,60 @@ void trian6::Kuh_matrix( std::vector<double>& Kuh ) const
         {
             for( int j=0; j<3; j++ )
             {
-                Kuh[i*3+j] = Bv[i]*NhVOL[j];
+                Kuh[i*3+j] += Bv[i]*NhVOL[j];
+            }
+        }
+    }
+}
+
+// Khuマトリクスの計算 (3x12)
+void trian6::Khu_matrix( std::vector<double>& Khu ) const
+{
+    for( int i=0; i<36; i++ ) Khu[i] = 0.0;
+    for( int ng=0; ng<num_gp; ng++ )
+    {
+        std::array<double,12> Bv = Bv_matrix_at( ng ); //1x12
+        std::array<double,3>  NhVOL = NhVOL_matrix_at( ng ); //1x3
+        for( int i=0; i<3; i++ )
+        {
+            for( int j=0; j<12; j++ )
+            {
+                Khu[i*12+j] += NhVOL[i]*Bv[j];
+            }
+        }
+    }
+}
+
+// Khhマトリクスの計算 (3x3)
+void trian6::Khh_matrix( std::vector<double>& Khh, const double k, const double gmw ) const
+{
+    for( int i=0; i<9; i++ ) Khh[i] = 0.0;
+    for( int ng=0; ng<num_gp; ng++ )
+    {
+        std::array<double,6> Bh = Bh_matrix_at( ng ); //2x3
+        std::array<double,6> BhVOL = BhVOL_matrix_at( ng ); //2x3
+        std::array<double,4> kmat = { k/gmw, 0.0, 0.0, k/gmw }; //2x2
+        std::array<double,6> BhTk; // 3x2
+        for( int i=0; i<num_nodw; i++ )
+        {
+            for( int j=0; j<dim; j++ )
+            {
+                BhTk[i*dim+j] = 0.0;
+                for( int k=0; k<dim; k++ )
+                {
+                    BhTk[i*dim+j] += Bh[k*3+i]*kmat[k*2+j];
+                }
+            }
+        }
+
+        for( int i=0; i<num_nodw; i++ )
+        {
+            for( int j=0; j<num_nodw; j++ )
+            {
+                for( int k=0; k<dim; k++ )
+                {
+                    Khh[i*3+j] += BhTk[i*dim+k]*BhVOL[k*3+j];
+                }
             }
         }
     }
@@ -581,6 +634,43 @@ void trian6::permutate_Kuh_matrix( std::vector<double>& Kuh ) const
     }
 }
 
+void trian6::permutate_Khu_matrix( std::vector<double>& Khu ) const
+{
+    std::array<double,36> Khu_tmp;
+    for( int i=0; i<36; i++ ) Khu_tmp[i] = Khu[i];
+
+    for( int i=0; i<num_nodw; i++ )
+    {
+        int io = permw[i];
+        for( int j=0; j<num_nods; j++ )
+        {
+            int jo = perms[j];
+            for( int l=0; l<dim; l++ )
+            {
+                int jl = j * dim + l;
+                int jol = jo * dim + l;
+                Khu[i*12+jl] = Khu_tmp[io*12+jol];
+            }
+        }
+    }
+}
+
+void trian6::permutate_Khh_matrix( std::vector<double>& Khh ) const
+{
+    std::array<double,9> Khh_tmp;
+    for( int i=0; i<9; i++ ) Khh_tmp[i] = Khh[i];
+
+    for( int i=0; i<num_nodw; i++ )
+    {
+        int io = permw[i];
+        for( int j=0; j<num_nodw; j++ )
+        {
+            int jo = permw[j];
+            Khh[i*3+j] = Khh_tmp[io*3+jo];
+        }
+    }
+}
+
 // 
 void trian6::cal_Kuu_matrix( std::vector<double>& Kuu, const std::vector<double>& D ) const
 {
@@ -595,7 +685,57 @@ void trian6::cal_Kuh_matrix( std::vector<double>& Kuh ) const
 {
     Kuh.resize(36); //12x3
     this->Kuh_matrix( Kuh );
+    //+++
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Kuh\n" );
+    for( int i=0; i<12; i++ )
+    {
+        for( int j=0; j<3; j++ )
+        {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Kuh[i*3+j] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    //---
     this->permutate_Kuh_matrix( Kuh );
+}
+
+//
+void trian6::cal_Khu_matrix( std::vector<double>& Khu ) const
+{
+    Khu.resize(36);
+    this->Khu_matrix( Khu );
+    //+++
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khu\n" );
+    for( int i=0; i<3; i++ )
+    {
+        for( int j=0; j<12; j++ )
+        {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khu[i*12+j] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    //---
+    this->permutate_Khu_matrix( Khu );
+}
+
+//
+void trian6::cal_Khh_matrix( std::vector<double>& Khh, const double k, const double gmw, const double fac ) const
+{
+    Khh.resize(9);
+    this->Khh_matrix( Khh, k, gmw );
+    for( int i=0; i<9; i++ ) Khh[i] *= fac;
+    //+++
+    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khh\n" );
+    for( int i=0; i<3; i++ )
+    {
+        for( int j=0; j<3; j++ )
+        {
+            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khh[i*3+j] );
+        }
+        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    }
+    //---
+    this->permutate_Khh_matrix( Khh );
 }
 
 

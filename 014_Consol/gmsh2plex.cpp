@@ -76,7 +76,7 @@ int main(int argc,char **argv)
   create_FE( dm, iwat, true );
 
   //=== DM の情報を出力
-  PetscCall( show_DM_info( dm, iwat ) );
+//  PetscCall( show_DM_info( dm, iwat ) );
 
   //=== 係数行列，右辺ベクトルの作成 ==============================================================================
   Mat A;
@@ -89,6 +89,8 @@ int main(int argc,char **argv)
   //=== 材料定数, Dマトリクス計算 ==============================================================================
   double E = 1.0e3;
   double nu = 0.33;
+  double k = 1.0e-3;
+  double gmw = 9.8;
   std::vector<PetscScalar> D;
   PetscCall( cal_D_matrix( dm, E, nu, D ) );
 
@@ -96,9 +98,16 @@ int main(int argc,char **argv)
   PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
   //=== Kuhマトリクスをマージ =================================================================
-  if( iwat ) PetscCall( merge_Kuh_matrix( dm, true ) );
+  if( iwat ) PetscCall( merge_Kuh_matrix( dm, elems, A, true ) );
 
-  /*
+  //=== Kuhマトリクスをマージ =================================================================
+  if( iwat ) PetscCall( merge_Khu_matrix( dm, elems, A, false ) );
+
+  //=== Khhマトリクスをマージ =================================================================
+  double beta = 1.0;
+  double dt = 0.1;
+  if( iwat ) PetscCall( merge_Khh_matrix( dm, k, gmw, beta, dt, elems, A, false ) );
+
   //=== 節点力 ==============================================================================
   int dir = 1;
   {
@@ -112,25 +121,99 @@ int main(int argc,char **argv)
 
   //=== Dirichlet境界条件 ==============================================================================
   int phys_id_bottom = 4;
-  PetscCall( set_Dirichlet_zero( dm, phys_id_bottom, A, b ) );
+  //PetscCall( set_Dirichlet_zero( dm, phys_id_bottom, A, b ) );
+  PetscCall( set_GBC( dm, phys_id_bottom, A, b ) );
+
+  //++++
+//  {
+//    PetscInt rs, re;
+//    const PetscScalar *a = NULL;
+//    PetscCall( VecGetOwnershipRange( b, &rs, &re ) );
+//    PetscCall( VecGetArrayRead( b, &a ) );
+//    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- rank=%3d b:\n", rank );
+//    for( PetscInt i=rs; i<re; i++ )
+//    {
+//      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "b[%5d]=%15.5e\n", i, a[i-rs] );
+//    }
+//    PetscCall( VecRestoreArrayRead( b, &a ) );
+//    PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+//  }
+  //----
 
   //=== ソルバーで解く ==============================================================================
   tmr.start();
+  
+  /*
+  // CG法
   KSP ksp;
   PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
   PetscCall( KSPSetOperators( ksp, A, A ) );
   PetscCall( KSPSetType( ksp, KSPCG ) );
   PetscCall( KSPSetFromOptions(ksp) );
   PetscCall( KSPSolve( ksp, b, sol ) );
+  */
+  
+  /*
+  // LU分解（直接法）
+  KSP ksp;
+  PC pc;
+  PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
+  PetscCall( KSPSetOperators( ksp, A, A ) );
+  PetscCall( KSPSetType( ksp, KSPPREONLY ) );
+  PetscCall( KSPGetPC( ksp, &pc ) );
+  PetscCall( PCSetType( pc, PCLU ) );
+  PetscCall( KSPSolve( ksp, b, sol ) );
+  */
+
+  // GMRES(Generalized Minimal Residual)
+  KSP ksp;
+  PC pc;
+  PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
+  PetscCall( KSPSetOperators( ksp, A, A ) );
+  PetscCall( KSPSetDM( ksp, dm ) );
+  KSPSetDMActive(ksp, PETSC_FALSE);
+  PetscCall( KSPSetType( ksp, KSPGMRES ) );
+  PetscCall( KSPGetPC( ksp, &pc ) );
+  PetscCall( PCSetType( pc, PCFIELDSPLIT ) );
+  PetscCall( KSPSetFromOptions(ksp) );
+  PetscCall( KSPSolve( ksp, b, sol ) );
+
+  // ICC CG
+  /*
+  KSP ksp;
+  PC pc;
+  PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
+  PetscCall( KSPSetOperators( ksp, A, A ) );
+  PetscCall( KSPSetType( ksp, KSPCG ) );
+  PetscCall( KSPGetPC( ksp, &pc ) );
+  PetscCall( PCSetType( pc, PCJACOBI ) );
+  PetscCall(KSPSetFromOptions(ksp));
+  PetscCall( KSPSolve( ksp, b, sol ) );
+  */
+
   tmr.stop("solve");
+  //++++
+//  {
+//    PetscInt rs, re;
+//    const PetscScalar *a = NULL;
+//    PetscCall( VecGetOwnershipRange( sol, &rs, &re ) );
+//    PetscCall( VecGetArrayRead( sol, &a ) );
+//    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "----------- rank=%3d sol:\n", rank );
+//    for( PetscInt i=rs; i<re; i++ )
+//    {
+//      PetscSynchronizedPrintf( PETSC_COMM_WORLD, "sol[%5d]=%15.5e\n", i, a[i-rs] );
+//    }
+//    PetscCall( VecRestoreArrayRead( sol, &a ) );
+//    PetscSynchronizedFlush( PETSC_COMM_WORLD, PETSC_STDOUT );
+//  }
+  //----
 
   //=== 変位の出力 ==============================================================================
   PetscCall( set_displacement( dm, sol, nodes ) );
-  PetscCall( show_displacement( elems ) );
+//  PetscCall( show_displacement( elems ) );
 
   //=== vtk ファイルの出力 ==============================================================================
   output_vtk( vtk_path, nodes, elems, lpid2ntag );
-  */
 
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );

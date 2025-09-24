@@ -28,11 +28,17 @@ PetscErrorCode cal_D_matrix( const DM& dm, const double E, const double nu, std:
 
 PetscErrorCode merge_Kuu_matrix( const DM& dm, const std::vector<PetscScalar>& D, const elem_vec& elems, Mat& A, const bool debug=false );
 
-PetscErrorCode merge_Kuh_matrix( const DM& dm, const bool debug=false );
+PetscErrorCode merge_Kuh_matrix( const DM& dm, const elem_vec& elems, Mat& A, const bool debug=false );
+
+PetscErrorCode merge_Khu_matrix( const DM& dm, const elem_vec& elems, Mat& A, const bool debug=false );
+
+PetscErrorCode merge_Khh_matrix( const DM& dm, const double k, const double gmw, const double beta, const double dt, const elem_vec& elems, Mat& A, const bool debug=false );
 
 PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b, const bool debug=false );
 
 PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
+
+PetscErrorCode set_GBC( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
 
 PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes );
 
