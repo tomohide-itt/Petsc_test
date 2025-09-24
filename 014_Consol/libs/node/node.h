@@ -18,12 +18,14 @@ public:
     {
         xy[0] = x;  xy[1] = y;  xy[2] = z;
         uv = { 0.0, 0.0, 0.0 };
+        pw = 0.0;
     }
 public:
     int id;
     int pid;
     std::array<double,3> xy;
     std::array<double,3> uv;
+    double pw;
 };
 
 class node_vec

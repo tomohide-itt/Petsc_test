@@ -36,15 +36,20 @@ PetscErrorCode merge_Khh_matrix( const DM& dm, const double k, const double gmw,
 
 PetscErrorCode set_nodal_force( const DM& dm, const PetscInt phys_id, const PetscScalar F, const PetscInt dir, Vec& b, const bool debug=false );
 
-PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
-
 PetscErrorCode set_GBC( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
+
+PetscErrorCode set_HBC( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
 
 PetscErrorCode set_displacement( const DM& dm, const Vec& sol, node_vec& nodes );
 
+PetscErrorCode set_ex_pore_water_pressure( const DM& dm, const Vec& sol, node_vec& nodes );
+
 PetscErrorCode show_displacement( const elem_vec& elems );
 
-void output_vtk( const std::string& vtk_path, const node_vec& nodes, const elem_vec& elems, const std::map<int,int>& lpid2ntag );
+PetscErrorCode show_ex_pore_water_pressure( const elem_vec& elems );
 
+void output_vtk( const std::string& vtk_path, const int iwat, const node_vec& nodes, const elem_vec& elems, const std::map<int,int>& lpid2ntag );
+
+//PetscErrorCode set_Dirichlet_zero( const DM& dm, const PetscInt phys_id, Mat& A, Vec& b );
 #endif
 

@@ -1,4 +1,4 @@
-// mpiexec -n 2 ./gmsh2plex -mesh test2D_4.msh -vtk mesh.vtk -iwat 1 -ksp_monitor
+// mpiexec -n 2 ./gmsh2plex -mesh test2D_4.msh -vtk mesh.vtk -iwat 1 -ksp_monitor -ksp_converged_reason
 // mpiexec -n 1 ./gmsh2plex -mesh test3D_1.msh -vtk mesh.vtk -ksp_monitor
 #include <iostream>
 #include <string>
@@ -73,7 +73,7 @@ int main(int argc,char **argv)
 
   //=== FE空間作成 ==============================================================================
   PetscFE fe;
-  create_FE( dm, iwat, true );
+  create_FE( dm, iwat, false );
 
   //=== DM の情報を出力
 //  PetscCall( show_DM_info( dm, iwat ) );
@@ -98,7 +98,7 @@ int main(int argc,char **argv)
   PetscCall( merge_Kuu_matrix( dm, D, elems, A, false ) );
 
   //=== Kuhマトリクスをマージ =================================================================
-  if( iwat ) PetscCall( merge_Kuh_matrix( dm, elems, A, true ) );
+  if( iwat ) PetscCall( merge_Kuh_matrix( dm, elems, A, false ) );
 
   //=== Kuhマトリクスをマージ =================================================================
   if( iwat ) PetscCall( merge_Khu_matrix( dm, elems, A, false ) );
@@ -116,13 +116,14 @@ int main(int argc,char **argv)
     dir = dim - 1;
   }
   int phys_id_top = 2;
+  int phys_id_bottom = 4;
   
   PetscCall( set_nodal_force( dm, phys_id_top, -0.1, dir, b, false ) );
 
   //=== Dirichlet境界条件 ==============================================================================
-  int phys_id_bottom = 4;
-  //PetscCall( set_Dirichlet_zero( dm, phys_id_bottom, A, b ) );
   PetscCall( set_GBC( dm, phys_id_bottom, A, b ) );
+
+  if( iwat ) PetscCall( set_HBC( dm, phys_id_top, A, b ) );
 
   //++++
 //  {
@@ -144,16 +145,6 @@ int main(int argc,char **argv)
   tmr.start();
   
   /*
-  // CG法
-  KSP ksp;
-  PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
-  PetscCall( KSPSetOperators( ksp, A, A ) );
-  PetscCall( KSPSetType( ksp, KSPCG ) );
-  PetscCall( KSPSetFromOptions(ksp) );
-  PetscCall( KSPSolve( ksp, b, sol ) );
-  */
-  
-  /*
   // LU分解（直接法）
   KSP ksp;
   PC pc;
@@ -164,20 +155,33 @@ int main(int argc,char **argv)
   PetscCall( PCSetType( pc, PCLU ) );
   PetscCall( KSPSolve( ksp, b, sol ) );
   */
-
-  // GMRES(Generalized Minimal Residual)
-  KSP ksp;
-  PC pc;
-  PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
-  PetscCall( KSPSetOperators( ksp, A, A ) );
-  PetscCall( KSPSetDM( ksp, dm ) );
-  KSPSetDMActive(ksp, PETSC_FALSE);
-  PetscCall( KSPSetType( ksp, KSPGMRES ) );
-  PetscCall( KSPGetPC( ksp, &pc ) );
-  PetscCall( PCSetType( pc, PCFIELDSPLIT ) );
-  PetscCall( KSPSetFromOptions(ksp) );
-  PetscCall( KSPSolve( ksp, b, sol ) );
-
+  
+  if( !iwat )
+  {
+    // CG法
+    KSP ksp;
+    PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
+    PetscCall( KSPSetOperators( ksp, A, A ) );
+    PetscCall( KSPSetType( ksp, KSPCG ) );
+    PetscCall( KSPSetFromOptions(ksp) );
+    PetscCall( KSPSolve( ksp, b, sol ) );
+  }
+  else
+  {
+    // GMRES(Generalized Minimal Residual)
+    KSP ksp;
+    PC pc;
+    PetscCall( KSPCreate( PETSC_COMM_WORLD, &ksp ) );
+    PetscCall( KSPSetOperators( ksp, A, A ) );
+    PetscCall( KSPSetDM( ksp, dm ) );
+    KSPSetDMActive(ksp, PETSC_FALSE);
+    PetscCall( KSPSetType( ksp, KSPGMRES ) );
+    PetscCall( KSPGetPC( ksp, &pc ) );
+    PetscCall( PCSetType( pc, PCFIELDSPLIT ) );
+    PetscCall( KSPSetFromOptions(ksp) );
+    PetscCall( KSPSolve( ksp, b, sol ) );
+  }
+  
   // ICC CG
   /*
   KSP ksp;
@@ -212,8 +216,15 @@ int main(int argc,char **argv)
   PetscCall( set_displacement( dm, sol, nodes ) );
 //  PetscCall( show_displacement( elems ) );
 
+  //=== 過剰間隙水圧の出力 ==============================================================================
+  if( iwat )
+  {
+    PetscCall( set_ex_pore_water_pressure( dm, sol, nodes ) );
+//    PetscCall( show_ex_pore_water_pressure( elems ) );
+  }
+
   //=== vtk ファイルの出力 ==============================================================================
-  output_vtk( vtk_path, nodes, elems, lpid2ntag );
+  output_vtk( vtk_path, iwat, nodes, elems, lpid2ntag );
 
   PetscCall( VecDestroy( &sol ) );
   PetscCall( VecDestroy( &b ) );

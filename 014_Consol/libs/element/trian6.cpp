@@ -686,15 +686,15 @@ void trian6::cal_Kuh_matrix( std::vector<double>& Kuh ) const
     Kuh.resize(36); //12x3
     this->Kuh_matrix( Kuh );
     //+++
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Kuh\n" );
-    for( int i=0; i<12; i++ )
-    {
-        for( int j=0; j<3; j++ )
-        {
-            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Kuh[i*3+j] );
-        }
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
-    }
+    //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Kuh\n" );
+    //for( int i=0; i<12; i++ )
+    //{
+    //    for( int j=0; j<3; j++ )
+    //    {
+    //        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Kuh[i*3+j] );
+    //    }
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    //}
     //---
     this->permutate_Kuh_matrix( Kuh );
 }
@@ -705,15 +705,15 @@ void trian6::cal_Khu_matrix( std::vector<double>& Khu ) const
     Khu.resize(36);
     this->Khu_matrix( Khu );
     //+++
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khu\n" );
-    for( int i=0; i<3; i++ )
-    {
-        for( int j=0; j<12; j++ )
-        {
-            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khu[i*12+j] );
-        }
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
-    }
+    //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khu\n" );
+    //for( int i=0; i<3; i++ )
+    //{
+    //    for( int j=0; j<12; j++ )
+    //    {
+    //        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khu[i*12+j] );
+    //    }
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    //}
     //---
     this->permutate_Khu_matrix( Khu );
 }
@@ -725,15 +725,15 @@ void trian6::cal_Khh_matrix( std::vector<double>& Khh, const double k, const dou
     this->Khh_matrix( Khh, k, gmw );
     for( int i=0; i<9; i++ ) Khh[i] *= fac;
     //+++
-    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khh\n" );
-    for( int i=0; i<3; i++ )
-    {
-        for( int j=0; j<3; j++ )
-        {
-            PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khh[i*3+j] );
-        }
-        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
-    }
+    //PetscSynchronizedPrintf( PETSC_COMM_WORLD, "Khh\n" );
+    //for( int i=0; i<3; i++ )
+    //{
+    //    for( int j=0; j<3; j++ )
+    //    {
+    //        PetscSynchronizedPrintf( PETSC_COMM_WORLD, "%15.5e", Khh[i*3+j] );
+    //    }
+    //    PetscSynchronizedPrintf( PETSC_COMM_WORLD, "\n" );
+    //}
     //---
     this->permutate_Khh_matrix( Khh );
 }
